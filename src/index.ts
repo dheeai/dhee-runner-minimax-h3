@@ -548,6 +548,78 @@ export function resolveSeconds(
  * (H3 renders the whole scene in one pass, so it can only hold one plate per
  * character).
  */
+/**
+ * Operator-supplied reference plates, pinned onto EVERY clip.
+ *
+ * `referenceInputs` resolves the prompt's own `references[]` by id, which means a
+ * plate only reaches a clip if the authoring model chose to cite it. That is right
+ * for generated anchors — the model knows which characters are in its scene — but
+ * wrong for a real photograph the operator hands the bundle: "use this actress's
+ * actual face" is not a per-scene creative decision, it is a constraint on the
+ * whole film, and the model has no way to know the input exists.
+ *
+ * So these bypass `references[]` entirely and are PREPENDED to the resolved list.
+ * Prepending is what makes them override rather than merely add: routeRefs dedupes
+ * by path, splits on bgTypes, and keeps only the FIRST background — so a pinned
+ * `location` photo displaces the generated location plate, and pinned `character`
+ * photos take the earliest subject slots and therefore survive the maxRefs cap and
+ * get the lowest `<Subject N>` numbers. No change to routeRefs was needed.
+ *
+ * Each entry needs `appearsAs` and `job` because H3's highest-leverage instruction
+ * is what a plate is FOR, and an operator photo has no story-bible entry to borrow
+ * that from. A missing file is skipped with a note rather than failing: these
+ * inputs are optional by design, and an absent photo should just mean "use the
+ * generated anchors", not "halt the film".
+ */
+/**
+ * Which reference types count as BACKGROUND (kept last, and only one survives).
+ * Shared so the pinned-plate merge classifies with the SAME set resolveRefs uses —
+ * otherwise a bundle overriding `bgTypes` would have it apply to routed refs but
+ * not pinned ones, and a pinned location photo would be routed as a subject.
+ */
+function bgTypesOf(cfg: Record<string, unknown>): Set<string> {
+  const rawBg = cfg['bgTypes'];
+  return new Set(
+    (Array.isArray(rawBg) ? rawBg.filter((t): t is string => typeof t === 'string') : ['location', 'setting'])
+      .map((t) => t.toLowerCase()),
+  );
+}
+
+interface PinnedRefSpec {
+  input?: unknown;
+  type?: unknown;
+  appearsAs?: unknown;
+  job?: unknown;
+}
+
+function pinnedRefs(ctx: RunnerContext, cfg: Record<string, unknown>): { refs: H3Ref[]; notes: string[] } {
+  const raw = cfg['pinnedRefs'];
+  if (!Array.isArray(raw) || !raw.length) return { refs: [], notes: [] };
+  const refs: H3Ref[] = [];
+  const notes: string[] = [];
+  for (const entry of raw as PinnedRefSpec[]) {
+    const key = typeof entry?.input === 'string' ? entry.input.trim() : '';
+    if (!key) continue;
+    const v = ctx.inputs[key];
+    // A declared file input arrives as a plain string path. Anything else (an
+    // unsupplied optional input is undefined/null) simply means "not provided".
+    if (typeof v !== 'string' || !v.trim()) continue;
+    if (!IMAGE_RE.test(v) || !existsSync(v)) {
+      notes.push(`pinned '${key}' skipped (not a readable image: ${v})`);
+      continue;
+    }
+    refs.push({
+      id: key,
+      type: typeof entry.type === 'string' && entry.type.trim() ? entry.type.trim() : 'character',
+      appearsAs: typeof entry.appearsAs === 'string' ? entry.appearsAs : undefined,
+      job: typeof entry.job === 'string' ? entry.job : undefined,
+      path: v,
+    });
+  }
+  if (refs.length) notes.push(`pinned ${refs.length} operator plate(s): ${refs.map((r) => `${r.id}[${r.type}]`).join(', ')}`);
+  return { refs, notes };
+}
+
 function resolveRefs(ctx: RunnerContext, cfg: Record<string, unknown>, planShots: ShotRow[]): { refs: H3Ref[]; notes: string[] } {
   const refInputs = cfg['referenceInputs'];
   if (!refInputs || typeof refInputs !== 'object' || Array.isArray(refInputs)) return { refs: [], notes: [] };
@@ -592,11 +664,7 @@ function resolveRefs(ctx: RunnerContext, cfg: Record<string, unknown>, planShots
     }
   }
 
-  const rawBg = cfg['bgTypes'];
-  const bgTypes = new Set(
-    (Array.isArray(rawBg) ? rawBg.filter((t): t is string => typeof t === 'string') : ['location', 'setting'])
-      .map((t) => t.toLowerCase()),
-  );
+  const bgTypes = bgTypesOf(cfg);
 
   const resolved: H3Ref[] = [];
   const notes: string[] = [];
@@ -730,6 +798,7 @@ const H3_DESC: RunnerDescription = {
       bindingClause: { type: 'boolean', description: "Prepend the deterministic '<Picture N> — <appearsAs>. Use it for <job>' clause (default true). H3's single highest-leverage instruction; turn it off only when the prose already carries its own slot assignments." },
 
       referenceInputs: { type: 'object', description: "PER-ITEM routing. Maps a references[].type -> a scope:'all' collection input id (or an ARRAY of input ids, merged in order — first id's entries win), e.g. { character: 'character_anchor_image', object: 'object_anchor_image', location: 'location_anchor_image' }. Resolves the prompt document's references[] by id, in authored order. An entry may ALSO point at a STAGE node (a plain string path in ctx.inputs, not a collection map) — e.g. { character: 'host_frame' } where host_frame is a comfy.image_edit stage's output. In that case the runner treats it as a one-entry map keyed by the input id itself, which means the authored references[].id for that type MUST be the literal INPUT/NODE ID ('host_frame'), never a story-bible id — there is no other key to resolve against." },
+      pinnedRefs: { type: 'array', items: { type: 'object' }, description: "Operator-supplied plates pinned onto EVERY clip, bypassing the prompt's references[] entirely: [{ input, type, appearsAs, job }]. `input` is a declared bundle input id holding a single image path (kind:'file'); `type` routes it like any other reference ('character' | 'object' | 'location'). Use this for a real photograph the operator hands the bundle — an actress's actual face, a real location — which is a constraint on the whole film rather than a per-scene choice the authoring model could know to cite. Pinned plates are PREPENDED before routing, which is what makes them OVERRIDE the generated anchors: routeRefs dedupes by path, keeps only the first background (so a pinned location displaces the generated one) and fills subject slots in order (so pinned characters survive the maxRefs cap and take the lowest <Subject N> numbers). An unsupplied or unreadable input is skipped with a note, never a failure — these are optional by design and an absent photo means 'use the generated anchors'." },
       refImages: { type: 'array', items: { type: 'string' }, description: 'Explicit ORDERED reference paths (subjects first, location LAST), relative to the project then the bundle. Used when referenceInputs resolves nothing.' },
       statePlanInput: { type: 'string', description: 'plan.character_states output. byShot[shotId][characterId] -> stateId picks each character\'s appearance state; for a SECTION item the states of its own shots are merged in order, last wins.' },
       stateImagesInput: { type: 'string', description: "scope='all' map of EDITED per-state character images ({ stateId: path }). Falls back to the base anchor when a state has no image." },
@@ -801,9 +870,16 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   if (clamped) ctx.log(tag(`${itemId}: duration clamped to ${seconds}s (H3 renders 5–15s per call; the planner asked for more or less)`));
 
   // ── references ──
+  // Pinned operator plates go FIRST: routeRefs keeps only the first background and
+  // fills subject slots in order, so leading with them is what makes an operator
+  // photo override a generated anchor rather than queue behind it.
+  const pinned = pinnedRefs(ctx, cfg);
   const routed = resolveRefs(ctx, cfg, planShots);
-  if (routed.notes.length) ctx.log(tag(`${itemId} refs: ${routed.notes.join(', ')}`));
-  let refs = routed.refs.length ? routed.refs : explicitRefImages(ctx, cfg).slice(0, H3_MAX_REFS);
+  const allNotes = [...pinned.notes, ...routed.notes];
+  if (allNotes.length) ctx.log(tag(`${itemId} refs: ${allNotes.join(', ')}`));
+  let refs = pinned.refs.length || routed.refs.length
+    ? routeRefs([...pinned.refs, ...routed.refs], bgTypesOf(cfg), rn(cfg, 'maxRefs') ?? H3_MAX_REFS).refs
+    : explicitRefImages(ctx, cfg).slice(0, H3_MAX_REFS);
   if (refs.length < 1) return { ok: false, error: tag(`need ≥1 reference image, got 0 for ${itemId}`) };
 
   // ── split multi-view identity SHEETS into separate single-view plates ──
