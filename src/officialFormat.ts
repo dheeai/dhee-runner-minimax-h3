@@ -152,6 +152,77 @@ export function assembleH3Prompt(parts: {
   ].join('\n\n');
 }
 
+/** Speech verbs that commit H3 to generating a voice. */
+const SPEECH_VERBS =
+  /\b(speaks?|speaking|spoke|says?|said|delivers? (?:her|his|their) lines?|(?:her|his|their) voice|murmurs?|whispers?|shouts?|calls? out|announces?|utters?|replies|answers)\b/gi;
+
+const normLine = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+export interface DialogueIntegrity {
+  /** Prose asserts speech but supplies no words — H3 will emit voice-shaped noise. */
+  fatal: string[];
+  /** Lines the plan assigned to this section that never reached the prose. */
+  warnings: string[];
+}
+
+/**
+ * Gate the two ways dialogue silently goes wrong before a clip is rendered.
+ *
+ * H3 builds its audio track from the prompt text, which makes one failure mode
+ * catastrophic and invisible: prose that says someone SPEAKS while supplying no
+ * words. H3 duly synthesises a voice saying nothing — voice-shaped noise that
+ * sounds like a corrupted file. The JSON validates, the render succeeds, and the
+ * clip is unusable. Confirmed on a measured 35-section film: one scene asserted
+ * speech three times with zero `<d>` tags, and re-rendering it with the line
+ * supplied — same seed, geometry, model, steps, references — produced clean
+ * intelligible speech. Resolution, step count, the pruned model and EasyCache were
+ * each falsified first, all failing identically because they rendered the same text.
+ *
+ * The second mode is quieter: a line the PLAN assigned to this section never
+ * reaches the prose at all, so the film simply loses that dialogue. That happened
+ * because the outline had assigned one short line to two sections and one of those
+ * sections' beats had nothing to do with it, so the authoring pass dropped it.
+ *
+ * These are graded deliberately, because they differ in what they cost:
+ *
+ *   fatal    — speech described with no words. The clip is GUARANTEED unusable, so
+ *              rendering it wastes GPU. Worth stopping for.
+ *   warning  — an assigned line missing while nothing claims to speak. The clip is
+ *              fine, the film is just missing a line. Not worth killing a long run.
+ *
+ * Both are exact string comparisons on data the runner already holds, which is the
+ * point: three separate PROSE rules about dialogue drifted on this bundle within
+ * hours, and a rule the model keeps breaking that is precisely checkable does not
+ * belong in a prompt.
+ */
+export function auditDialogueIntegrity(
+  prose: string,
+  planShots: Array<{ dialogue?: unknown }>,
+): DialogueIntegrity {
+  const spoken = new Set(
+    [...prose.matchAll(/<d>\[[^\]]*\]([\s\S]*?)<\/d>/g)].map((m) => normLine(m[1])).filter(Boolean),
+  );
+  const assigned = planShots.map((s) => normLine(s.dialogue)).filter(Boolean);
+
+  const fatal: string[] = [];
+  const warnings: string[] = [];
+
+  const verbs = [...new Set((prose.match(SPEECH_VERBS) || []).map((v) => v.toLowerCase()))];
+  if (spoken.size === 0 && verbs.length > 0) {
+    fatal.push(
+      `prose describes speech (${verbs.slice(0, 4).map((v) => `"${v}"`).join(', ')}) but contains NO <d>[Language] ...</d> ` +
+        'words — H3 will synthesise a voice with nothing to say and the audio will be garbled',
+    );
+  }
+
+  for (const line of new Set(assigned)) {
+    if (!spoken.has(line)) {
+      warnings.push(`plan line never reached the prompt: "${line.slice(0, 60)}"`);
+    }
+  }
+  return { fatal, warnings };
+}
+
 /**
  * Cheap structural check on an authored `detailed_description`, for logging only.
  *

@@ -50,7 +50,7 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
-import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription } from './officialFormat.js';
+import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity } from './officialFormat.js';
 
 export * from './officialFormat.js';
 
@@ -866,6 +866,26 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     });
     const notes = auditDetailedDescription(remap.prose, { hasDialogue: /<d>/.test(remap.prose) || planShots.some((x) => typeof (x as { dialogue?: string }).dialogue === 'string') });
     if (notes.length) ctx.log(tag(`${itemId} prompt audit: ${notes.join('; ')}`));
+
+    // ── dialogue integrity gate ──
+    // Checked BEFORE dispatching to Comfy, because the fatal case guarantees an
+    // unusable clip and there is no point paying for the render. `allowGarbledAudio`
+    // exists as an escape hatch, not an invitation: set it only to reproduce the
+    // defect deliberately.
+    const integrity = auditDialogueIntegrity(remap.prose, planShots as Array<{ dialogue?: unknown }>);
+    for (const w of integrity.warnings) ctx.log(tag(`${itemId} DIALOGUE WARNING: ${w}`));
+    if (integrity.fatal.length) {
+      const msg = `${itemId}: ${integrity.fatal.join('; ')}`;
+      if (rb(cfg, 'allowGarbledAudio') === true) {
+        ctx.log(tag(`${itemId} DIALOGUE FATAL (overridden by allowGarbledAudio): ${integrity.fatal.join('; ')}`));
+      } else {
+        throw new Error(
+          `comfy.minimax_h3_r2v: ${msg}. Either supply the line in a <d>[Language] ...</d> tag with an (Sx) ` +
+            'speaker id, or rewrite the description as physical action (breath, movement, stillness) so nothing ' +
+            'claims to speak. Set allowGarbledAudio:true to render anyway.',
+        );
+      }
+    }
     const composed = composePrompt('', assembled);
     positive = composed.prompt; trimmed = composed.trimmed;
   } else {
