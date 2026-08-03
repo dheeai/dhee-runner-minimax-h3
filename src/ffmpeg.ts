@@ -18,6 +18,20 @@ export function ff(args: string[], signal?: AbortSignal): Promise<{ ok: boolean;
   });
 }
 
+/** Pixel dimensions of an image/video via ffprobe, or null when unreadable. */
+export function probeSize(path: string, signal?: AbortSignal): Promise<{ w: number; h: number } | null> {
+  return new Promise((done) => {
+    const p = spawn(FFPROBE, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x', path], { stdio: ['ignore', 'pipe', 'ignore'], signal });
+    let so = '';
+    p.stdout?.on('data', (d) => { so += d.toString(); });
+    p.on('close', () => {
+      const m = /^(\d+)x(\d+)/.exec(so.trim());
+      done(m ? { w: Number(m[1]), h: Number(m[2]) } : null);
+    });
+    p.on('error', () => done(null));
+  });
+}
+
 /** Media duration (seconds) via ffprobe, or null when unreadable. */
 export function probeDuration(path: string, signal?: AbortSignal): Promise<number | null> {
   return new Promise((done) => {

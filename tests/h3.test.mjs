@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import {
   snapH3Frames, routeRefs, buildBindingClause, composePrompt, resolveSeconds, shotsForItem,
+  planSheetExpansion,
   H3_MAX_REFS, H3_MIN_SECONDS, H3_MAX_SECONDS,
 } from '../dist/index.js';
 
@@ -144,6 +145,37 @@ t('falls back to cfg.seconds when neither prompt nor plan says anything', () => 
   const r = resolveSeconds(undefined, [], 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
   assert.equal(r.seconds, 10);
   assert.equal(r.source, 'fallback');
+});
+
+console.log('planSheetExpansion — contact sheets become separate single-view plates, within 9 slots');
+t('the ordinary case: 1 character + object + location → 2 views, 4 slots', () => {
+  const r = planSheetExpansion(1, 2, 2, 9);
+  assert.deepEqual(r, { views: 2, total: 4, degraded: false });
+});
+t('3 characters + object + location still fits at 2 views each', () => {
+  const r = planSheetExpansion(3, 2, 2, 9);
+  assert.equal(r.views, 2);
+  assert.equal(r.total, 8);
+  assert.equal(r.degraded, false);
+});
+t('4 characters + a location is exactly 9 slots at 2 views — it fits, no degrade', () => {
+  const r = planSheetExpansion(4, 1, 2, 9);
+  assert.deepEqual(r, { views: 2, total: 9, degraded: false });
+});
+t('5 characters + a location degrades to 1 view each rather than dropping anyone', () => {
+  const r = planSheetExpansion(5, 1, 2, 9);
+  assert.equal(r.views, 1);
+  assert.equal(r.total, 6);
+  assert.equal(r.degraded, true);
+});
+t('never degrades below one view per subject, even when over budget', () => {
+  const r = planSheetExpansion(12, 1, 3, 9);
+  assert.equal(r.views, 1); // the plain maxRefs cap handles the rest
+});
+t('a scene with no sheet subjects is left alone', () => {
+  const r = planSheetExpansion(0, 3, 2, 9);
+  assert.equal(r.total, 3);
+  assert.equal(r.degraded, false);
 });
 
 console.log(`\n${pass} assertions passed.`);

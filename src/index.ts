@@ -49,7 +49,7 @@ import { defineRunner, resolveEndpointUrl, retryTransient } from '@dheeai/runner
 import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } from '@dheeai/runner-sdk';
 
 import { ComfyClient } from './comfyClient.js';
-import { ff } from './ffmpeg.js';
+import { ff, probeSize } from './ffmpeg.js';
 
 const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
 const TEXT_RE = /\.(md|txt|json)$/i;
@@ -268,6 +268,101 @@ export function routeRefs(resolved: H3Ref[], bgTypes: Set<string>, maxRefs: numb
   const refs = [...subj, ...bgKeep];
   if (!refs.length) notes.push('0 references resolved — this item declared none that could be found');
   return { refs, notes };
+}
+
+/**
+ * Decide how many single-view plates each character gets, given the slot budget.
+ *
+ * WHY THIS EXISTS — the finding that motivated it:
+ *
+ * `illustrated_story_msr` renders each character anchor as a MULTI-VIEW CONTACT
+ * SHEET: one 1536x864 image holding four 384x864 panels of the same person
+ * (front full-body, profile, three-quarter, medium close-up) on a plain
+ * backdrop. LTX MSR wants that, and the bundle builds it deliberately.
+ *
+ * H3 does NOT. It reads `<Picture N>` as a literal photograph, so handed a
+ * contact sheet it sees "four people standing against a beige wall" and RENDERS
+ * THAT LAYOUT INTO THE OUTPUT FRAME — measured in
+ * `dhee-cofounder/artifacts/h3-r2v-probe` cell A, where the bottom ~40% of every
+ * frame is a reproduction of the sheet with the composed scene squeezed into the
+ * top band. It is neither a passthrough (mid-frame SSIM to the plate: 0.38) nor
+ * leaked guide frames (the clip was exactly its requested 124 frames) — the
+ * model composed an original scene AND painted the sheet in as scenery.
+ *
+ * The fix uses H3's own affordance: it takes NINE reference slots, so a
+ * character never needs compressing into one tiled image. `sheetPanels` tells
+ * the runner the character plates ARE N-panel sheets; it crops them and sends
+ * the picked panels as SEPARATE references — strictly more usable information
+ * than one sheet downscaled into a single slot.
+ *
+ * The budget is the interesting part. Expansion multiplies subjects, so a
+ * three-character scene at 2 views each is already 6 slots before the object and
+ * the location. This walks the views-per-character down (never below 1) until
+ * the expanded set fits, so a crowded scene degrades to one view each rather
+ * than silently dropping a character.
+ */
+export function planSheetExpansion(
+  characterCount: number,
+  otherCount: number,
+  wantViews: number,
+  maxRefs: number,
+): { views: number; total: number; degraded: boolean } {
+  const cap = Math.max(1, Math.min(H3_MAX_REFS, Math.round(maxRefs)));
+  const want = Math.max(1, Math.round(wantViews));
+  if (characterCount === 0) return { views: want, total: otherCount, degraded: false };
+  let views = want;
+  while (views > 1 && characterCount * views + otherCount > cap) views--;
+  return { views, total: characterCount * views + otherCount, degraded: views < want };
+}
+
+/**
+ * Crop `pick` panels out of an N-panel horizontal contact sheet and return them
+ * as separate references, in place of the sheet. Panels are equal-width slices
+ * across the full height, matching how the bundle lays its identity sheets out.
+ *
+ * Falls back to the original sheet for any reference whose size cannot be probed
+ * or whose crop fails — a slightly-wrong reference beats dropping the character.
+ */
+async function expandSheetRefs(
+  refs: H3Ref[],
+  opts: { panels: number; pick: number[]; views: number; scratchDir: string; sheetTypes: Set<string> },
+  log: (m: string) => void,
+  signal?: AbortSignal,
+): Promise<{ refs: H3Ref[]; notes: string[] }> {
+  const notes: string[] = [];
+  if (opts.panels < 2) return { refs, notes };
+  await mkdir(opts.scratchDir, { recursive: true });
+
+  const out: H3Ref[] = [];
+  for (const r of refs) {
+    if (!opts.sheetTypes.has(r.type)) { out.push(r); continue; }
+    const size = await probeSize(r.path, signal);
+    if (!size || size.w < opts.panels * 32) {
+      notes.push(`${r.id}: not splittable (size ${size ? `${size.w}x${size.h}` : 'unknown'}) — sent whole`);
+      out.push(r);
+      continue;
+    }
+    const panelW = Math.floor(size.w / opts.panels);
+    const wanted = opts.pick.filter((i) => i >= 0 && i < opts.panels).slice(0, opts.views);
+    const idxs = wanted.length ? wanted : [0];
+    const made: H3Ref[] = [];
+    for (const i of idxs) {
+      const dest = join(opts.scratchDir, `${r.id.replace(/[^a-zA-Z0-9_-]/g, '_')}_v${i}.png`);
+      const res = await ff(['-y', '-i', r.path, '-vf', `crop=${panelW}:${size.h}:${i * panelW}:0`, '-frames:v', '1', dest], signal);
+      if (!res.ok || !existsSync(dest)) { notes.push(`${r.id}: panel ${i} crop failed`); continue; }
+      made.push({
+        ...r,
+        id: `${r.id}#v${i}`,
+        path: dest,
+        appearsAs: r.appearsAs ? `${r.appearsAs} (view ${made.length + 1})` : undefined,
+      });
+    }
+    if (!made.length) { notes.push(`${r.id}: every panel crop failed — sent the whole sheet`); out.push(r); continue; }
+    notes.push(`${r.id}: sheet split into ${made.length} view(s) [${idxs.join(',')}]`);
+    out.push(...made);
+  }
+  if (notes.length) log(`comfy.minimax_h3_r2v: ${notes.join('; ')}`);
+  return { refs: out, notes };
 }
 
 interface ShotRow { id?: string; scene?: number; duration?: number; speaker?: string | null }
@@ -508,6 +603,11 @@ const H3_DESC: RunnerDescription = {
       bgTypes: { type: 'array', items: { type: 'string' }, description: "references[].type values treated as background/scene and moved LAST. Default ['location','setting']." },
       maxRefs: { type: 'integer', description: 'Cap on total references, 1..9 (H3 supports 9). Background keeps its slot; lowest-priority subjects drop first. Default 9.' },
 
+      sheetPanels: { type: 'integer', description: "N if the character plates are N-panel horizontal multi-view identity SHEETS (illustrated_story_* renders 4). Default 0 = off. H3 reads a reference as a literal photograph, so a contact sheet gets RENDERED INTO THE FRAME as several people against a backdrop (measured: h3-r2v-probe cell A). Setting this makes the runner crop the sheet and send the picked panels as separate references, which is what H3's 9 slots are for." },
+      sheetTypes: { type: 'array', items: { type: 'string' }, description: "references[].type values whose plates are sheets. Default ['character']." },
+      sheetPick: { type: 'array', items: { type: 'integer' }, description: 'Panel indices to use, in order, 0-based left to right. Default [0, sheetPanels-1] — the first full-body view and the close-up, the two most informative panels of the standard layout.' },
+      viewsPerCharacter: { type: 'integer', description: 'How many panels to send per sheet subject (default 2). Walked down automatically, never below 1, when the expanded set would overflow maxRefs — so a crowded scene degrades to one view each rather than dropping a character.' },
+
       shotPlanInput: { type: 'string', description: 'Shot-plan JSON input id. For a shot item, that shot\'s duration; for a SECTION item, the SUM of the section\'s shots\' durations.' },
       seconds: { type: 'number', description: 'Fallback clip seconds when nothing else resolves (default 10).' },
       minSeconds: { type: 'number', description: "H3's floor, default 5." },
@@ -564,8 +664,35 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   // ── references ──
   const routed = resolveRefs(ctx, cfg, planShots);
   if (routed.notes.length) ctx.log(tag(`${itemId} refs: ${routed.notes.join(', ')}`));
-  const refs = routed.refs.length ? routed.refs : explicitRefImages(ctx, cfg).slice(0, H3_MAX_REFS);
+  let refs = routed.refs.length ? routed.refs : explicitRefImages(ctx, cfg).slice(0, H3_MAX_REFS);
   if (refs.length < 1) return { ok: false, error: tag(`need ≥1 reference image, got 0 for ${itemId}`) };
+
+  // ── split multi-view identity SHEETS into separate single-view plates ──
+  // H3 renders a contact sheet as scenery instead of reading it as one subject
+  // (see planSheetExpansion). Opt-in via cfg.sheetPanels, because only the
+  // bundle knows whether its character plates are sheets.
+  const sheetPanels = Math.round(rn(cfg, 'sheetPanels') ?? 0);
+  if (sheetPanels >= 2) {
+    const rawSheetTypes = cfg['sheetTypes'];
+    const sheetTypes = new Set(
+      (Array.isArray(rawSheetTypes) ? rawSheetTypes.filter((t): t is string => typeof t === 'string') : ['character'])
+        .map((t) => t.toLowerCase()),
+    );
+    const rawPick = cfg['sheetPick'];
+    const pick = Array.isArray(rawPick) && rawPick.length
+      ? rawPick.filter((n): n is number => typeof n === 'number').map((n) => Math.round(n))
+      : [0, sheetPanels - 1];
+    const characterCount = refs.filter((r) => sheetTypes.has(r.type)).length;
+    const otherCount = refs.length - characterCount;
+    const plan2 = planSheetExpansion(characterCount, otherCount, rn(cfg, 'viewsPerCharacter') ?? 2, rn(cfg, 'maxRefs') ?? H3_MAX_REFS);
+    if (plan2.degraded) ctx.log(tag(`${itemId}: ${characterCount} sheet subject(s) + ${otherCount} other ref(s) would overflow ${H3_MAX_REFS} slots — down to ${plan2.views} view(s) per subject`));
+    const expanded = await expandSheetRefs(refs, {
+      panels: sheetPanels, pick, views: plan2.views,
+      scratchDir: join(ctx.projectDir, '.h3_ref_views'),
+      sheetTypes,
+    }, ctx.log, ctx.signal);
+    refs = expanded.refs.slice(0, Math.max(1, Math.min(H3_MAX_REFS, Math.round(rn(cfg, 'maxRefs') ?? H3_MAX_REFS))));
+  }
 
   // ── prompt ──
   const prose = rs(cfg, 'prompt') ?? resolvePromptText(ctx, cfg);
