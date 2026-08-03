@@ -124,6 +124,53 @@ function pickFrom(map: Record<string, string> | undefined, id: string): string |
 }
 
 /**
+ * Named resolution presets, and a `<w>x<h>` escape hatch.
+ *
+ * Resolution is the one H3 setting an operator genuinely wants to vary PER
+ * PROJECT rather than per bundle: cost scales as roughly pixels^1.3 (measured —
+ * 832x480 renders a 5s clip in 55s where 1344x768 takes 205s), so you author
+ * and iterate cheap and render the final cut at native. Baking it into the
+ * bundle's runner config would force every project to share one answer.
+ *
+ * So the bundle declares a `resolution` PROJECT FIELD and points the runner at
+ * it with `resolutionInput`. Declared project fields are merged into every
+ * runner's ctx.inputs, which is the sanctioned way for a runner to read a
+ * per-project value — no engine change, no config templating.
+ *
+ * 'native' is H3's own geometry: 768 on the short edge, capped 768x1344.
+ */
+const RESOLUTION_PRESETS: Record<string, [number, number]> = {
+  '480p': [832, 480],
+  '540p': [960, 544],
+  '720p': [1280, 720],
+  '768p': [1344, 768],
+  native: [1344, 768],
+};
+
+/**
+ * Resolve width/height for this render. Precedence: the project's `resolution`
+ * field (preset name or `<w>x<h>`), then the node's own width/height config,
+ * then H3's native geometry. Always snapped to /32, which the node requires.
+ */
+export function resolveGeometry(
+  resolutionValue: unknown,
+  cfgWidth: number | undefined,
+  cfgHeight: number | undefined,
+): { width: number; height: number; source: string } {
+  const snap = (x: number) => Math.max(32, Math.round(x / 32) * 32);
+  if (typeof resolutionValue === 'string' && resolutionValue.trim()) {
+    const v = resolutionValue.trim().toLowerCase();
+    const preset = RESOLUTION_PRESETS[v];
+    if (preset) return { width: preset[0], height: preset[1], source: `resolution:${v}` };
+    const m = /^(\d{2,5})\s*[x×]\s*(\d{2,5})$/.exec(v);
+    if (m) return { width: snap(Number(m[1])), height: snap(Number(m[2])), source: `resolution:${v}` };
+    // An unrecognised value falls through to config rather than failing the
+    // render — a typo in a project field should not lose a whole scene.
+  }
+  return { width: snap(cfgWidth ?? 1344), height: snap(cfgHeight ?? 768), source: 'config' };
+}
+
+/**
  * Snap a raw frame count onto H3's latent-temporal grid: valid lengths are
  * `17k + 5` (5, 22, 39, 56 … 362). This is the same arithmetic the stock
  * ComfyUI template performs in its `ComfyMathExpression` node
@@ -614,8 +661,9 @@ const H3_DESC: RunnerDescription = {
       maxSeconds: { type: 'number', description: "H3's ceiling, default 15." },
       fps: { type: 'number', description: 'Default 24 — H3 is a 24fps model; changing this changes only the frame math, not the output rate.' },
 
-      width: { type: 'integer', description: 'Default 1344. H3 renders natively at 768 on the short edge, capped 768x1344, snapped to /32.' },
+      width: { type: 'integer', description: 'Default 1344. H3 renders natively at 768 on the short edge, capped 768x1344, snapped to /32. Overridden by resolutionInput when the project sets it.' },
       height: { type: 'integer', description: 'Default 768.' },
+      resolutionInput: { type: 'string', description: "Input id of a PROJECT FIELD holding the render resolution — a preset ('480p', '540p', '720p', '768p', 'native') or an explicit '<w>x<h>'. Takes precedence over width/height so an operator can author cheap and render the final cut at native without editing the bundle; cost scales as ~pixels^1.3, so 480p is ~3.7x faster than native. An unrecognised value falls back to width/height rather than failing the render." },
       refImageSize: { type: 'string', enum: ['match', 'max'], description: "'match' scales references to the generation resolution (faster); 'max' preserves up to 2048px short edge (stronger identity, slower). Default 'match'." },
       steps: { type: 'integer', description: 'Sampler steps, default 20 (stock template).' },
       samplerName: { type: 'string', description: "Default 'res_multistep'." },
@@ -703,8 +751,11 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   if (trimmed > 0) ctx.log(tag(`${itemId}: prompt exceeded H3's ~${H3_PROMPT_CHAR_LIMIT}-char window — trimmed ${trimmed} chars off the prose tail`));
 
   // ── geometry / sampler ──
-  const W = snap32(rn(cfg, 'width') ?? 1344);
-  const He = snap32(rn(cfg, 'height') ?? 768);
+  const resKey = rs(cfg, 'resolutionInput');
+  const geom = resolveGeometry(resKey ? ctx.inputs[resKey] : undefined, rn(cfg, 'width'), rn(cfg, 'height'));
+  const W = geom.width;
+  const He = geom.height;
+  if (geom.source !== 'config') ctx.log(tag(`${itemId}: ${W}x${He} from project ${geom.source}`));
   const refImageSize = rs(cfg, 'refImageSize') ?? 'match';
   const steps = Math.max(1, Math.round(rn(cfg, 'steps') ?? 20));
   const samplerName = rs(cfg, 'samplerName') ?? 'res_multistep';

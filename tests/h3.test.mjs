@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {
   snapH3Frames, routeRefs, buildBindingClause, composePrompt, resolveSeconds, shotsForItem,
-  planSheetExpansion,
+  planSheetExpansion, resolveGeometry,
   H3_MAX_REFS, H3_MIN_SECONDS, H3_MAX_SECONDS,
 } from '../dist/index.js';
 
@@ -176,6 +176,40 @@ t('a scene with no sheet subjects is left alone', () => {
   const r = planSheetExpansion(0, 3, 2, 9);
   assert.equal(r.total, 3);
   assert.equal(r.degraded, false);
+});
+
+console.log('resolveGeometry — resolution is a per-project field, not a bundle constant');
+t('a preset name wins over the node config', () => {
+  const g = resolveGeometry('480p', 1344, 768);
+  assert.deepEqual(g, { width: 832, height: 480, source: 'resolution:480p' });
+});
+t('preset lookup is case-insensitive and trims', () => {
+  assert.equal(resolveGeometry('  720P ', 1344, 768).width, 1280);
+});
+t("'native' is H3's own geometry", () => {
+  const g = resolveGeometry('native', 100, 100);
+  assert.deepEqual([g.width, g.height], [1344, 768]);
+});
+t('an explicit <w>x<h> is accepted and snapped to /32', () => {
+  const g = resolveGeometry('1000x600', 1344, 768);
+  assert.deepEqual([g.width, g.height], [992, 608]);
+});
+t('unset falls back to the node config, snapped to /32', () => {
+  // 720 is not a multiple of 32 (22.5x), so the config path rounds it to 736.
+  // Presets are deliberately NOT snapped: '720p' stays a true 1280x720, which
+  // is measured working against the node despite its declared step of 32.
+  const g = resolveGeometry(undefined, 1280, 720);
+  assert.deepEqual(g, { width: 1280, height: 736, source: 'config' });
+  assert.deepEqual(resolveGeometry('720p', 1, 1), { width: 1280, height: 720, source: 'resolution:720p' });
+});
+t('a TYPO falls back to config rather than failing the render', () => {
+  const g = resolveGeometry('48op', 1344, 768);
+  assert.equal(g.source, 'config');
+  assert.equal(g.width, 1344);
+});
+t('nothing at all yields H3 native', () => {
+  const g = resolveGeometry(undefined, undefined, undefined);
+  assert.deepEqual([g.width, g.height], [1344, 768]);
 });
 
 console.log(`\n${pass} assertions passed.`);
