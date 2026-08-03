@@ -50,6 +50,9 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
+import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription } from './officialFormat.js';
+
+export * from './officialFormat.js';
 
 const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
 const TEXT_RE = /\.(md|txt|json)$/i;
@@ -229,6 +232,9 @@ async function unloadLocalLlmForRender(comfyBaseUrl: string, log: (m: string) =>
 // ══════════════════════════════════════════════════════════════════════════
 
 export interface H3Ref {
+  /** 1-based position in the authored references[] — lets the runner remap
+   *  <Subject N> labels when routing changes the final order. */
+  authoredIndex?: number;
   /** story-bible id, for logging + state substitution */
   id: string;
   /** 'character' | 'object' | 'location' | … — routes to a reference collection */
@@ -613,7 +619,7 @@ function resolveRefs(ctx: RunnerContext, cfg: Record<string, unknown>, planShots
     }
     if (!picked) { notes.push(`${id}(${type}) UNRESOLVED`); continue; }
     resolved.push({
-      id, type, path: picked,
+      id, type, path: picked, authoredIndex: resolved.length + 1,
       appearsAs: typeof r?.appearsAs === 'string' ? r.appearsAs : undefined,
       job: typeof r?.job === 'string' ? r.job : undefined,
     });
@@ -832,8 +838,41 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   if (!proseRaw) return { ok: false, error: tag('no prompt resolved') };
   const prose = normalizePromptLayout(proseRaw);
   const wantClause = rb(cfg, 'bindingClause') ?? true;
-  const clause = wantClause ? buildBindingClause(refs) : '';
-  const { prompt: positive, trimmed } = composePrompt(clause, prose);
+
+  // ── official six-section assembly ──
+  // When the prompt document carries the four model-authored sections, build the
+  // real MiniMax full-reference format: the runner injects subject_definitions
+  // and retention_analysis at their fixed positions (both are functions of the
+  // FINAL reference order, which the author cannot know) and remaps any
+  // <Subject N>/<Picture N> the author wrote if routing changed that order.
+  // Otherwise fall back to legacy single-prose + <Picture N> clause so existing
+  // bundles keep working unchanged.
+  const doc = promptDoc ?? {};
+  const detailed = rs(doc, 'detailedDescription');
+  let positive: string;
+  let trimmed = 0;
+  if (wantClause && detailed) {
+    const { subjectDefinitions, retentionAnalysis } = buildSubjectSections(refs);
+    const authoredOrder = refs.map((r) => (typeof r.authoredIndex === 'number' ? r.authoredIndex : 0));
+    const remap = remapSubjectLabels(detailed, authoredOrder);
+    if (remap.remapped) ctx.log(tag(`${itemId}: remapped <Subject N> labels — routing reordered the plates`));
+    const assembled = assembleH3Prompt({
+      subjectDefinitions,
+      summary: rs(doc, 'summary') ?? '[reference generation] ' + (rs(doc, 'purpose') ?? 'Reference-guided scene.'),
+      retentionAnalysis,
+      detailedDescription: remap.prose,
+      overallSoundscape: rs(doc, 'overallSoundscape'),
+      nonDiegeticMusic: rs(doc, 'nonDiegeticMusic'),
+    });
+    const notes = auditDetailedDescription(remap.prose, { hasDialogue: /<d>/.test(remap.prose) || planShots.some((x) => typeof (x as { dialogue?: string }).dialogue === 'string') });
+    if (notes.length) ctx.log(tag(`${itemId} prompt audit: ${notes.join('; ')}`));
+    const composed = composePrompt('', assembled);
+    positive = composed.prompt; trimmed = composed.trimmed;
+  } else {
+    const clause = wantClause ? buildBindingClause(refs) : '';
+    const composed = composePrompt(clause, prose);
+    positive = composed.prompt; trimmed = composed.trimmed;
+  }
   if (trimmed > 0) ctx.log(tag(`${itemId}: prompt exceeded H3's ~${H3_PROMPT_CHAR_LIMIT}-char window — trimmed ${trimmed} chars off the prose tail`));
 
   // ── geometry / sampler ──
