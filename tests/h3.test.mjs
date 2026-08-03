@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {
   snapH3Frames, routeRefs, buildBindingClause, composePrompt, resolveSeconds, shotsForItem,
-  planSheetExpansion, resolveGeometry,
+  planSheetExpansion, resolveGeometry, normalizePromptLayout,
   H3_MAX_REFS, H3_MIN_SECONDS, H3_MAX_SECONDS,
 } from '../dist/index.js';
 
@@ -210,6 +210,40 @@ t('a TYPO falls back to config rather than failing the render', () => {
 t('nothing at all yields H3 native', () => {
   const g = resolveGeometry(undefined, undefined, undefined);
   assert.deepEqual([g.width, g.height], [1344, 768]);
+});
+
+console.log('normalizePromptLayout — layout is code, not a prompt instruction');
+const RUNON = 'Cinematic look, 50mm, natural grade.  Scene overview: A dock at dawn.  Storyboard, one continuous shot:  [0s-3s] Wide on the jetty.  [3s-7s] She walks.  [7s-10s] She stops.  Camera: One continuous shot, no cuts.  Lighting: Low dawn sun.  Audio: Gulls and water.  Performance: Weary but steady.  Do not include on-screen text.';
+const HEADS = ['Scene overview','Storyboard','Camera','Lighting','Audio','Performance'];
+const atStart = (t) => HEADS.filter((h) => new RegExp('^\\s*' + h, 'im').test(t)).length;
+
+t('a zero-newline run-on gets every heading back on its own line', () => {
+  assert.equal(RUNON.split('\n').length - 1, 0, 'fixture must be a single line');
+  const out = normalizePromptLayout(RUNON);
+  assert.equal(atStart(out), 6, 'all six headings should start a line');
+});
+t('carries the qualifier form "Storyboard, one continuous shot:"', () => {
+  const out = normalizePromptLayout(RUNON);
+  assert.match(out, /^Storyboard, one continuous shot:/m);
+});
+t('every timecoded block starts its own line', () => {
+  const out = normalizePromptLayout(RUNON);
+  assert.equal((out.match(/^\s*\[\s*\d/gm) || []).length, 3);
+});
+t('IDEMPOTENT — running it twice changes nothing', () => {
+  const once = normalizePromptLayout(RUNON);
+  assert.equal(normalizePromptLayout(once), once);
+});
+t('already-formatted prose is left alone', () => {
+  const good = 'Look line.\n\nScene overview: A dock.\n\nStoryboard:\n\n[0s-5s] Wide.\n\nCamera: Locked.\n\nLighting: Dawn.\n\nAudio: Gulls.\n\nPerformance: Steady.\n\nDo not add text.';
+  assert.equal(normalizePromptLayout(good), good);
+});
+t('collapses runs of 3+ newlines to a single blank line', () => {
+  assert.equal(normalizePromptLayout('a\n\n\n\nb'), 'a\n\nb');
+});
+t('does not split a timecode that already starts a line', () => {
+  const out = normalizePromptLayout('[0s-3s] One.\n\n[3s-6s] Two.');
+  assert.equal((out.match(/^\s*\[/gm) || []).length, 2);
 });
 
 console.log(`\n${pass} assertions passed.`);

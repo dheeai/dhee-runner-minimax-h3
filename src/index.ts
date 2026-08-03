@@ -103,10 +103,27 @@ function readJsonInput(ctx: RunnerContext, key: string | undefined): unknown {
   return undefined;
 }
 
-/** A scope:'all' collection map ({ itemId -> imagePath }), filtered to readable images. */
+/**
+ * A scope:'all' collection map ({ itemId -> imagePath }), filtered to readable
+ * images — OR, when `ctx.inputs[key]` is a single STRING path (a STAGE node's
+ * output, not a collection), a one-entry map keyed by the input id itself.
+ *
+ * A stage node's output arrives in ctx.inputs as a plain string, not an
+ * `{ itemId: path }` object, so without this a stage-shaped reference (e.g.
+ * `referenceInputs: { character: "host_frame" }` pointing at a
+ * `comfy.image_edit` stage) resolved to undefined every time, refs fell
+ * through to explicitRefImages (which has no appearsAs/job), and
+ * buildBindingClause degraded to its generic fallback line. The consequence,
+ * spelled out because it is the non-obvious part: when a bundle wires a stage
+ * this way, the authored `references[].id` must be the literal INPUT/NODE ID
+ * ("host_frame"), never a story-bible id — there is no other key to look up.
+ */
 function collectionMap(ctx: RunnerContext, key: string | undefined): Record<string, string> | undefined {
   if (!key) return undefined;
   const v = ctx.inputs[key];
+  if (typeof v === 'string') {
+    return v.trim() && IMAGE_RE.test(v) && existsSync(v) ? { [key]: v } : undefined;
+  }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
   const out: Record<string, string> = {};
   for (const [k, p] of Object.entries(v as Record<string, unknown>)) {
@@ -251,6 +268,50 @@ export function buildBindingClause(refs: H3Ref[]): string {
     ...lines.map((l) => `${l}.`),
     'Hold these identities, wardrobes, props and locations consistent through every cut below; do not redesign them between cuts.',
   ].join('\n');
+}
+
+/**
+ * The literal headings the scene skeleton asks for, in order. Used only for
+ * LAYOUT normalisation — never to validate content.
+ */
+const PROMPT_HEADINGS = ['Scene overview', 'Storyboard', 'Camera', 'Lighting', 'Audio', 'Performance'];
+
+/**
+ * Put the authored prompt's blocks back on their own lines.
+ *
+ * WHY THIS IS IN CODE AND NOT IN THE PROMPT. The scene template gives the model a
+ * skeleton with headings and blank lines between blocks, and models emit that
+ * layout INCONSISTENTLY inside a JSON string. Measured on one deepseek-v4-flash
+ * run over two scenes with the identical template: scene_2 came back with 21
+ * newlines and every heading at line start, while scene_1 came back with ZERO
+ * newlines -- all six headings and every timecode block run together in a single
+ * paragraph separated by double spaces. Same model, same call, same prompt.
+ *
+ * The content was complete in both. Only the whitespace differed. That is
+ * mechanical formatting, so it belongs here rather than in an instruction the
+ * model follows half the time -- the same reasoning that puts the '<Picture N>'
+ * binding clause in the runner instead of asking the author to number slots.
+ *
+ * Idempotent: prose that already has its blank lines is returned unchanged
+ * (bar collapsing runs of 3+ newlines to 2).
+ */
+export function normalizePromptLayout(prose: string): string {
+  let out = prose.replace(/\r\n?/g, '\n');
+  // Each heading starts its own block. Only rewrite when the heading is NOT
+  // already at the start of a line, so an already-formatted prompt is untouched.
+  for (const h of PROMPT_HEADINGS) {
+    // The heading may carry a qualifier before its colon -- the skeleton asks for
+    // "Storyboard, one continuous shot:" as well as a bare "Storyboard:" -- so
+    // allow anything up to the colon that is not a newline or another colon.
+    out = out.replace(
+      new RegExp(`([^\\n])[ \\t]*(${h}[^\\n:]{0,40}:)`, 'g'),
+      (_m, before: string, head: string) => `${before}\n\n${head}`,
+    );
+  }
+  // Every timecoded block starts its own line: [0s-3s], [0-3 seconds], [3.2s-6.8s].
+  out = out.replace(/([^\n])[ \t]*(\[\s*\d+(?:\.\d+)?\s*s?\s*[-–—]\s*\d+(?:\.\d+)?\s*s?\s*(?:seconds?)?\s*\])/g,
+    (_m, before: string, tc: string) => `${before}\n\n${tc}`);
+  return out.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
 }
 
 /**
@@ -484,8 +545,27 @@ export function resolveSeconds(
 function resolveRefs(ctx: RunnerContext, cfg: Record<string, unknown>, planShots: ShotRow[]): { refs: H3Ref[]; notes: string[] } {
   const refInputs = cfg['referenceInputs'];
   if (!refInputs || typeof refInputs !== 'object' || Array.isArray(refInputs)) return { refs: [], notes: [] };
-  const typeToInput = refInputs as Record<string, string>;
+  const typeToInput = refInputs as Record<string, string | string[]>;
   if (!Object.keys(typeToInput).length) return { refs: [], notes: [] };
+
+  /**
+   * Resolve one type to a MERGED collection map across every input id listed
+   * for it. Array order is precedence — the first id's entries win, a later
+   * id in the list never shadows an earlier one — so a bundle can list a
+   * single-image stage alongside a real scope:'all' anchor collection under
+   * the same reference type without one clobbering the other.
+   */
+  const mapForType = (type: string): Record<string, string> | undefined => {
+    const ids = typeToInput[type];
+    const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
+    let merged: Record<string, string> | undefined;
+    for (const id of list) {
+      const m = collectionMap(ctx, id);
+      if (!m) continue;
+      merged = merged ? { ...m, ...merged } : { ...m };
+    }
+    return merged;
+  };
 
   const promptDoc = readJsonInput(ctx, rs(cfg, 'promptInput')) as { references?: H3Ref[] } | undefined;
   const declared = Array.isArray(promptDoc?.references) ? promptDoc!.references! : [];
@@ -528,7 +608,7 @@ function resolveRefs(ctx: RunnerContext, cfg: Record<string, unknown>, planShots
       }
     }
     if (!picked) {
-      picked = pickFrom(collectionMap(ctx, typeToInput[type]), id);
+      picked = pickFrom(mapForType(type), id);
       if (picked) notes.push(`${id}→anchor`);
     }
     if (!picked) { notes.push(`${id}(${type}) UNRESOLVED`); continue; }
@@ -610,7 +690,7 @@ async function padClip(path: string, padStart: number, padEnd: number, signal?: 
 // ══════════════════════════════════════════════════════════════════════════
 const H3_MANIFEST: RunnerManifest = {
   tool: 'comfy.minimax_h3_r2v',
-  version: '0.1.0',
+  version: '0.2.0',
   engineCompat: '>=0.1.0',
   credentials: [],
   displayName: 'MiniMax H3 Reference-to-Video (multi-cut AV clip)',
@@ -643,7 +723,7 @@ const H3_DESC: RunnerDescription = {
       durationField: { type: 'string', description: "Numeric seconds field on the prompt document (default 'duration'). Highest-precedence duration source — the scene prompt wrote the timecoded shot list, so it owns its own length." },
       bindingClause: { type: 'boolean', description: "Prepend the deterministic '<Picture N> — <appearsAs>. Use it for <job>' clause (default true). H3's single highest-leverage instruction; turn it off only when the prose already carries its own slot assignments." },
 
-      referenceInputs: { type: 'object', description: "PER-ITEM routing. Maps a references[].type -> a scope:'all' collection input id, e.g. { character: 'character_anchor_image', object: 'object_anchor_image', location: 'location_anchor_image' }. Resolves the prompt document's references[] by id, in authored order." },
+      referenceInputs: { type: 'object', description: "PER-ITEM routing. Maps a references[].type -> a scope:'all' collection input id (or an ARRAY of input ids, merged in order — first id's entries win), e.g. { character: 'character_anchor_image', object: 'object_anchor_image', location: 'location_anchor_image' }. Resolves the prompt document's references[] by id, in authored order. An entry may ALSO point at a STAGE node (a plain string path in ctx.inputs, not a collection map) — e.g. { character: 'host_frame' } where host_frame is a comfy.image_edit stage's output. In that case the runner treats it as a one-entry map keyed by the input id itself, which means the authored references[].id for that type MUST be the literal INPUT/NODE ID ('host_frame'), never a story-bible id — there is no other key to resolve against." },
       refImages: { type: 'array', items: { type: 'string' }, description: 'Explicit ORDERED reference paths (subjects first, location LAST), relative to the project then the bundle. Used when referenceInputs resolves nothing.' },
       statePlanInput: { type: 'string', description: 'plan.character_states output. byShot[shotId][characterId] -> stateId picks each character\'s appearance state; for a SECTION item the states of its own shots are merged in order, last wins.' },
       stateImagesInput: { type: 'string', description: "scope='all' map of EDITED per-state character images ({ stateId: path }). Falls back to the base anchor when a state has no image." },
@@ -669,6 +749,11 @@ const H3_DESC: RunnerDescription = {
       samplerName: { type: 'string', description: "Default 'res_multistep'." },
       scheduler: { type: 'string', description: "Default 'beta' — Comfy's own recommendation over 'simple' for reference-heavy prompts." },
       seed: { type: 'integer', description: 'Base seed; the per-item seed is derived from it + the item id so a rerun is stable but scenes differ.' },
+
+      easyCache: { type: 'boolean', description: "Keep the graph's EasyCache node (default true when the graph has one). false removes it and rewires consumers back to the raw model, so the pass can be A/B'd for its quality cost without editing the workflow. EasyCache skips low-change transformer evaluations, which is the only lever that reduces the number of steps actually computed -- and the one most likely to erode fine identity detail." },
+      easyCacheThreshold: { type: 'number', description: "EasyCache reuse_threshold. Higher skips more steps and degrades more. The shipped graph uses 0.3." },
+      easyCacheStart: { type: 'number', description: 'EasyCache start_percent (default in the graph: 0.2). Caching before this fraction of sampling is skipped, since the early high-noise steps set composition.' },
+      easyCacheEnd: { type: 'number', description: 'EasyCache end_percent (default in the graph: 0.9).' },
 
       padStart: { type: 'number', description: 'Seconds of held frame + silence prepended (default 0).' },
       padEnd: { type: 'number', description: 'Seconds of held frame + silence appended (default 0).' },
@@ -743,8 +828,9 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   }
 
   // ── prompt ──
-  const prose = rs(cfg, 'prompt') ?? resolvePromptText(ctx, cfg);
-  if (!prose) return { ok: false, error: tag('no prompt resolved') };
+  const proseRaw = rs(cfg, 'prompt') ?? resolvePromptText(ctx, cfg);
+  if (!proseRaw) return { ok: false, error: tag('no prompt resolved') };
+  const prose = normalizePromptLayout(proseRaw);
   const wantClause = rb(cfg, 'bindingClause') ?? true;
   const clause = wantClause ? buildBindingClause(refs) : '';
   const { prompt: positive, trimmed } = composePrompt(clause, prose);
@@ -796,7 +882,15 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   // node's dynamic input group as dotted keys `ref_images.ref_image_<N>`, each
   // pointing at a LoadImage. Drop whatever the template shipped and wire exactly
   // as many as this item resolved.
-  for (const k of Object.keys(r2v.inputs)) if (k.startsWith('ref_images.')) delete r2v.inputs[k];
+  // Strip BOTH serialisations of the autogrow group before rebuilding it. The
+  // dotted 'ref_images.ref_image_<N>' form is what our graphs use and what is
+  // proven to render; the FLAT 'ref_image_<N>' form appears in graphs exported
+  // from the Comfy UI. Deleting only the dotted form left a flat key behind
+  // pointing at the template's placeholder LoadImage, so a stale example image
+  // was silently sent as an extra reference alongside the real plates.
+  for (const k of Object.keys(r2v.inputs)) {
+    if (k.startsWith('ref_images.') || /^ref_image_\d+$/.test(k)) delete r2v.inputs[k];
+  }
   for (let i = 0; i < names.length; i++) {
     const loadId = `h3Ref${i}`;
     wf[loadId] = { class_type: 'LoadImage', inputs: { image: names[i]! } };
@@ -806,6 +900,34 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   r2v.inputs['height'] = He;
   r2v.inputs['length'] = LEN;
   r2v.inputs['ref_image_size'] = refImageSize;
+
+  // ── EasyCache ──
+  // It skips transformer evaluations whose inter-timestep change is under
+  // reuse_threshold, so it removes WORK rather than making work faster — the only
+  // lever that touches H3's dominant cost (step count). It is also the one that
+  // can erode fine identity detail, which is the axis H3 is chosen for, so it must
+  // be switchable without editing the graph: easyCache:false removes the node and
+  // rewires every consumer back to the raw model.
+  const cacheId = Object.keys(wf).find((k) => wf[k]?.class_type === 'EasyCache');
+  if (cacheId) {
+    const wantCache = rb(cfg, 'easyCache') ?? true;
+    if (!wantCache) {
+      const upstream = wf[cacheId]!.inputs?.['model'];
+      delete wf[cacheId];
+      for (const node of Object.values(wf)) {
+        for (const [k, v] of Object.entries(node.inputs ?? {})) {
+          if (Array.isArray(v) && v[0] === cacheId) node.inputs![k] = upstream as unknown as never;
+        }
+      }
+      ctx.log(tag(`${itemId}: EasyCache removed (easyCache:false)`));
+    } else {
+      const ci = wf[cacheId]!.inputs ?? (wf[cacheId]!.inputs = {});
+      const th = rn(cfg, 'easyCacheThreshold'); if (th !== undefined) ci['reuse_threshold'] = th;
+      const st = rn(cfg, 'easyCacheStart'); if (st !== undefined) ci['start_percent'] = st;
+      const en = rn(cfg, 'easyCacheEnd'); if (en !== undefined) ci['end_percent'] = en;
+      ctx.log(tag(`${itemId}: EasyCache on (reuse ${ci['reuse_threshold']}, ${ci['start_percent']}-${ci['end_percent']})`));
+    }
+  }
 
   // Orphan the template's resolution/length helper nodes if it shipped any —
   // they are now unreferenced, and Comfy errors on nodes whose outputs go
