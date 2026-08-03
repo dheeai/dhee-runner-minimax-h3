@@ -1,0 +1,15 @@
+{
+  "tool": "comfy.minimax_h3_r2v",
+  "version": "0.1.0",
+  "engineCompat": ">=0.1.0",
+  "displayName": "MiniMax H3 Reference-to-Video (multi-cut AV clip)",
+  "description": "Renders ONE multi-cut clip of up to 15 seconds with native stereo audio from up to 9 reference plates, via the MiniMaxH3ReferenceToVideo node on a local ComfyUI. Builds the <Picture N> reference-binding clause deterministically, snaps duration to H3's 17k+5 frame grid at 24fps, and hands the whole timed shot list to the model as one prompt.",
+  "entry": "dist/index.js",
+  "credentials": [],
+  "permissions": {
+    "network": ["<comfy-endpoint-host>"],
+    "filesystem": "project",
+    "subprocess": true,
+    "env": ["DHEE_FFMPEG", "DHEE_FFPROBE", "COMFYUI_BASE_URL", "ENDPOINT_self_local", "DHEE_SINGLE_GPU", "DHEE_LOCAL_LLM_URL"]
+  }
+}

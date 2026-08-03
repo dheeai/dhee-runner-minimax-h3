@@ -1,0 +1,43 @@
+{
+  "name": "dhee-runner-minimax-h3",
+  "version": "0.1.0",
+  "description": "MiniMax H3 (Hailuo 03) Reference-to-Video runner for Dhee: comfy.minimax_h3_r2v renders ONE multi-cut clip of up to 15s with native stereo audio from up to 9 reference plates, on a local ComfyUI. Pure TS + ffmpeg; the graph lives in the bundle.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "keywords": [
+    "dhee-runner"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dhee": {
+    "runners": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "runner.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepare": "npm run build",
+    "test": "npm run build && node tests/h3.test.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@dheeai/runner-sdk": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "typescript": "^5.8.3"
+  }
+}
