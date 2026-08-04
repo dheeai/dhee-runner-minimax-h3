@@ -128,6 +128,144 @@ export function remapSubjectLabels(
 }
 
 /**
+ * Repair the two mechanical H3-format defects authoring models reliably produce.
+ *
+ * Both are things the guide requires, the prompt has demanded in its strongest
+ * (terminal) position through several revisions, and the model still gets wrong —
+ * and both are exactly repairable from the text plus the plan, with no judgement:
+ *
+ *   MISSING (Sx)  H3 needs a stable speaker id on the speaker before each spoken
+ *                 line: `<Subject 2> (S1) says: <d>[English] ...</d>`. Without it
+ *                 H3 has words and no voice to attach them to. Measured on
+ *                 deepseek-v4-flash-0731: 4 of 6 outputs contained ZERO `(Sx)`
+ *                 anywhere, while otherwise naming the speaker and the delivery
+ *                 perfectly ("Meher's voice is flat and commanding as she says:").
+ *                 The information is all there; only the token is missing.
+ *
+ *   TIMESTAMPED [Shot 1]  The first shot must carry no cut time — `At MM:SS.mmm`
+ *                 belongs on [Shot 2] onward. A run that had just been taught to
+ *                 emit the marker started emitting `[Shot 1] At 00:00.000`.
+ *
+ * Why repair rather than keep asking: every PROSE rule tried on this bundle has
+ * drifted, including two attempts at these very two, one of which made compliance
+ * WORSE by displacing a working rule out of the terminal position. Every
+ * STRUCTURAL fix has held. A rule that is regex-checkable and mechanically
+ * satisfiable does not belong in a prompt.
+ *
+ * Speaker identity comes from the plan where possible: the shot whose `dialogue`
+ * matches this line names its `speaker`, so the same character keeps the same
+ * `(Sx)` across every line in the scene — which is what H3 needs and what a
+ * per-line guess would get wrong. Falling back to the nearest preceding
+ * `<Subject N>` keeps it working when the plan has no speaker recorded.
+ *
+ * Insertion goes after the nearest preceding `<Subject N>`, producing the exact
+ * documented shape. Only if there is no such label does it prepend `(Sx) ` to the
+ * tag itself — less elegant, still correct.
+ */
+export function repairH3Prose(
+  prose: string,
+  planShots: Array<{ dialogue?: unknown; speaker?: unknown }>,
+): { prose: string; notes: string[] } {
+  const notes: string[] = [];
+  let out = prose;
+
+  // ── 1. a declared cut with no [Shot N] marker gets one ──
+  // Models write the transition correctly but omit the bracket marker: "…the only
+  // other noise. At 00:04.000, the shot cuts to a wide…". H3 is trained on the
+  // markers, and without one the audit also (correctly) sees that cut time as
+  // belonging to [Shot 1], which is a second, spurious-looking failure from the
+  // same root cause. The model has already committed to a cut AND a time here, so
+  // inserting the marker adds no information it did not supply — it only supplies
+  // the token. Numbering continues from however many markers already exist.
+  const cutRe = /(?<!\[Shot \d{1,2}\]\s{0,3})\bAt\s+\d{2}:\d{2}\.\d{3}\s*,?\s*(?=the\s+(?:shot|camera)\s+(?:cuts?|transitions?|switches)\b)/g;
+  const unmarked = [...out.matchAll(cutRe)];
+  if (unmarked.length) {
+    const highest = [...out.matchAll(/\[Shot (\d{1,2})\]/g)].reduce((mx, m) => Math.max(mx, Number(m[1])), 0);
+    // Number in TEXT order (first unmarked cut gets the lowest number), then apply
+    // back-to-front so each insertion cannot shift the offsets still pending.
+    const planned = unmarked.map((m, i) => ({ at: m.index!, num: highest + 1 + i }));
+    for (const e of [...planned].reverse()) {
+      out = `${out.slice(0, e.at)}[Shot ${e.num}] ${out.slice(e.at)}`;
+    }
+    notes.push(`inserted ${planned.length} missing [Shot N] marker(s) on cuts the prose already timed`);
+  }
+
+  // ── 2. [Shot 1] must not carry a cut time ──
+  const shot1Re = /(\[Shot 1\])\s*(?:At\s+\d{2}:\d{2}\.\d{3}\s*,?\s*)/;
+  if (shot1Re.test(out)) {
+    out = out.replace(shot1Re, '$1 ');
+    notes.push('stripped the cut time from [Shot 1] (only later shots carry one)');
+  }
+
+  // ── 2. every <d> needs an (Sx) on its speaker ──
+  const norm = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  /** line -> speaker id, from the plan, so ids stay stable per character. */
+  const speakerOfLine = new Map<string, string>();
+  for (const s of planShots) {
+    const line = norm(s.dialogue);
+    const who = String(s.speaker ?? '').trim();
+    if (line && who) speakerOfLine.set(line, who);
+  }
+
+  /** speaker key -> assigned Sx number, first speaker to appear becomes S1. */
+  const sxOf = new Map<string, number>();
+  const sxFor = (key: string) => {
+    if (!sxOf.has(key)) sxOf.set(key, sxOf.size + 1);
+    return sxOf.get(key)!;
+  };
+
+  // Pre-seed ids in the order lines are SPOKEN, so S1 is the first voice heard
+  // rather than whichever tag happened to be repaired first.
+  for (const m of out.matchAll(/<d>\[[^\]]*\]([\s\S]*?)<\/d>/g)) {
+    const key = speakerOfLine.get(norm(m[1]));
+    if (key) sxFor(key);
+  }
+
+  // Collected as {offset, text} then applied from the END backwards, so each
+  // insertion cannot shift the offsets of the ones still to be applied. Mutating
+  // the string inside a String.replace callback does NOT work — replace operates
+  // on the snapshot taken at call time, so those writes are silently discarded.
+  const edits: Array<{ at: number; text: string }> = [];
+  let injected = 0;
+
+  for (const m of out.matchAll(/<d>\[[^\]]*\]([\s\S]*?)<\/d>/g)) {
+    const offset = m.index!;
+    const before = out.slice(0, offset);
+    // Already tagged? The id must sit in the clause leading up to THIS tag, not
+    // anywhere earlier in the scene — bound the search at the previous </d>.
+    const prevEnd = before.lastIndexOf('</d>');
+    const clauseStart = prevEnd >= 0 ? prevEnd + '</d>'.length : 0;
+    const clause = before.slice(clauseStart);
+    if (/\(S\d+(?:,S\d+)*\)/.test(clause)) continue;
+
+    const subj = [...clause.matchAll(/<Subject (\d+)>/g)].pop();
+    const key = speakerOfLine.get(norm(m[1])) ?? (subj ? `subject_${subj[1]}` : `line_${injected}`);
+    const sx = `(S${sxFor(key)})`;
+    injected++;
+
+    if (subj) {
+      // after that <Subject N>, giving the documented `<Subject 2> (S1) says: <d>…`
+      edits.push({ at: clauseStart + subj.index! + subj[0].length, text: ` ${sx}` });
+    } else {
+      // no label to hang it on — prefix the tag itself
+      edits.push({ at: offset, text: `${sx} ` });
+    }
+  }
+
+  for (const e of edits.sort((a, b) => b.at - a.at)) {
+    out = `${out.slice(0, e.at)}${e.text}${out.slice(e.at)}`;
+  }
+
+  if (injected) {
+    notes.push(
+      `injected ${injected} missing (Sx) speaker id(s) across ${sxOf.size} speaker(s) — ` +
+        'H3 cannot attach a voice to a line without one',
+    );
+  }
+  return { prose: out, notes };
+}
+
+/**
  * Assemble the six-section prompt. Model-authored sections go in verbatim; the
  * runner's two are injected at their fixed positions. An absent audio section
  * becomes `N/A`, which is what the guide asks for rather than dropping the

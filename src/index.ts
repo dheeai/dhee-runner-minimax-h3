@@ -50,7 +50,7 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
-import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity } from './officialFormat.js';
+import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, repairH3Prose } from './officialFormat.js';
 
 export * from './officialFormat.js';
 
@@ -932,15 +932,25 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     const authoredOrder = refs.map((r) => (typeof r.authoredIndex === 'number' ? r.authoredIndex : 0));
     const remap = remapSubjectLabels(detailed, authoredOrder);
     if (remap.remapped) ctx.log(tag(`${itemId}: remapped <Subject N> labels — routing reordered the plates`));
+
+    // ── mechanical format repairs, before the audit ──
+    // Ordered deliberately: repair FIRST so the audit and the dialogue gate below
+    // judge the text that is actually SENT, not the model's draft. Auditing first
+    // would report failures we then silently fixed, and the gate would reject
+    // renders that are fine. Only the in-flight prompt is repaired; the stored
+    // prompts/scenes/*.json keeps the raw output, so how often the model gets it
+    // right on its own stays measurable.
+    const repaired = repairH3Prose(remap.prose, planShots as Array<{ dialogue?: unknown; speaker?: unknown }>);
+    for (const n of repaired.notes) ctx.log(tag(`${itemId} format repair: ${n}`));
     const assembled = assembleH3Prompt({
       subjectDefinitions,
       summary: rs(doc, 'summary') ?? '[reference generation] ' + (rs(doc, 'purpose') ?? 'Reference-guided scene.'),
       retentionAnalysis,
-      detailedDescription: remap.prose,
+      detailedDescription: repaired.prose,
       overallSoundscape: rs(doc, 'overallSoundscape'),
       nonDiegeticMusic: rs(doc, 'nonDiegeticMusic'),
     });
-    const notes = auditDetailedDescription(remap.prose, { hasDialogue: /<d>/.test(remap.prose) || planShots.some((x) => typeof (x as { dialogue?: string }).dialogue === 'string') });
+    const notes = auditDetailedDescription(repaired.prose, { hasDialogue: /<d>/.test(repaired.prose) || planShots.some((x) => typeof (x as { dialogue?: string }).dialogue === 'string') });
     if (notes.length) ctx.log(tag(`${itemId} prompt audit: ${notes.join('; ')}`));
 
     // ── dialogue integrity gate ──
@@ -948,7 +958,7 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     // unusable clip and there is no point paying for the render. `allowGarbledAudio`
     // exists as an escape hatch, not an invitation: set it only to reproduce the
     // defect deliberately.
-    const integrity = auditDialogueIntegrity(remap.prose, planShots as Array<{ dialogue?: unknown }>);
+    const integrity = auditDialogueIntegrity(repaired.prose, planShots as Array<{ dialogue?: unknown }>);
     for (const w of integrity.warnings) ctx.log(tag(`${itemId} DIALOGUE WARNING: ${w}`));
     if (integrity.fatal.length) {
       const msg = `${itemId}: ${integrity.fatal.join('; ')}`;
