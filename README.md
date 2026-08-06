@@ -54,6 +54,8 @@ Required: `outputPath`, `workflowPath`. Everything else has a working default.
 
     "promptInput": "scene_video_prompt",   // JSON doc or text
     "promptField": "videoPrompt",
+    "spokenLinesField": "spokenLines",
+    "dialogueLanguageInput": "language",
     "durationField": "duration",           // seconds, authored by the prompt stage
     "bindingClause": true,                 // prepend the <Picture N> job clause
 
@@ -76,6 +78,15 @@ Required: `outputPath`, `workflowPath`. Everything else has a working default.
   }
 }
 ```
+
+When `spokenLinesField` is configured, the named prompt-document field must
+contain exactly one non-empty line. If the authored prose omitted every `<d>`
+block, the runner inserts that line as the canonical
+`<Subject 1> (S1) says: <d>[Language] exact words</d>` clause before prompt
+auditing and before the Comfy workflow is built. `dialogueLanguageInput` names
+the project input supplying `Language`; `dialogueLanguage` is a literal fallback.
+This closes the JSON-schema gap where an author can emit the exact line in one
+field yet fail to duplicate it into the prose the renderer consumes.
 
 ### Duration precedence
 

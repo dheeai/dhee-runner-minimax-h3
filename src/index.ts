@@ -50,8 +50,10 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
+import { injectAuthoredDialogue } from './dialogueInjection.js';
 import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, repairH3Prose } from './officialFormat.js';
 
+export * from './dialogueInjection.js';
 export * from './officialFormat.js';
 
 const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
@@ -764,7 +766,7 @@ async function padClip(path: string, padStart: number, padEnd: number, signal?: 
 // ══════════════════════════════════════════════════════════════════════════
 const H3_MANIFEST: RunnerManifest = {
   tool: 'comfy.minimax_h3_r2v',
-  version: '0.2.0',
+  version: '0.3.0',
   engineCompat: '>=0.1.0',
   credentials: [],
   displayName: 'MiniMax H3 Reference-to-Video (multi-cut AV clip)',
@@ -793,6 +795,9 @@ const H3_DESC: RunnerDescription = {
 
       promptInput: { type: 'string', description: 'Input id of the authored prompt document (JSON) or text. JSON is read via promptField.' },
       promptField: { type: 'string', description: "Prose field on a JSON promptInput (default: tries videoPrompt, prompt, imagePrompt, text)." },
+      spokenLinesField: { type: 'string', description: "Optional array field on the authored prompt document containing exactly one verbatim spoken line. When configured and detailedDescription contains no <d> block, the runner deterministically inserts `<Subject 1> (S1) says: <d>[Language] exact words</d>` before auditing and rendering." },
+      dialogueLanguageInput: { type: 'string', description: 'Project input id holding the language label used by spokenLinesField injection (for example `language`).' },
+      dialogueLanguage: { type: 'string', description: 'Literal fallback language label for spokenLinesField injection when dialogueLanguageInput is unset or empty.' },
       prompt: { type: 'string', description: 'Literal prose, overriding promptInput. Mostly for probes.' },
       durationField: { type: 'string', description: "Numeric seconds field on the prompt document (default 'duration'). Highest-precedence duration source — the scene prompt wrote the timecoded shot list, so it owns its own length." },
       bindingClause: { type: 'boolean', description: "Prepend the deterministic '<Picture N> — <appearsAs>. Use it for <job>' clause (default true). H3's single highest-leverage instruction; turn it off only when the prose already carries its own slot assignments." },
@@ -930,7 +935,24 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   if (wantClause && detailed) {
     const { subjectDefinitions, retentionAnalysis } = buildSubjectSections(refs);
     const authoredOrder = refs.map((r) => (typeof r.authoredIndex === 'number' ? r.authoredIndex : 0));
-    const remap = remapSubjectLabels(detailed, authoredOrder);
+    let renderDetailed = detailed;
+    const spokenLinesField = rs(cfg, 'spokenLinesField');
+    if (spokenLinesField) {
+      const languageInput = rs(cfg, 'dialogueLanguageInput');
+      const languageValue = languageInput ? ctx.inputs[languageInput] : undefined;
+      const injected = injectAuthoredDialogue({
+        prose: renderDetailed,
+        spokenLines: doc[spokenLinesField],
+        language: typeof languageValue === 'string' && languageValue.trim()
+          ? languageValue
+          : rs(cfg, 'dialogueLanguage'),
+      });
+      renderDetailed = injected.prose;
+      if (injected.injected) {
+        ctx.log(tag(`${itemId} format repair: injected authored '${spokenLinesField}' as canonical H3 dialogue`));
+      }
+    }
+    const remap = remapSubjectLabels(renderDetailed, authoredOrder);
     if (remap.remapped) ctx.log(tag(`${itemId}: remapped <Subject N> labels — routing reordered the plates`));
 
     // ── mechanical format repairs, before the audit ──
