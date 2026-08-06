@@ -72,6 +72,7 @@ export function injectAuthoredDialogue(input: AuthoredDialogueInput): AuthoredDi
   const subjectNumber = Math.max(1, Math.round(input.subjectNumber ?? 1));
   const speakerNumber = Math.max(1, Math.round(input.speakerNumber ?? 1));
   const canonicalLine = `<Subject ${subjectNumber}> (S${speakerNumber}) says: <d>[${language}] ${lines[0]!.trim()}</d>`;
+  const preDialogueGuard = `<Subject ${subjectNumber}> keeps her lips closed and remains silent until the later dialogue cue; no speech or voiceover is heard before then.`;
 
   const speechCue = firstSpeechCue(prose);
   let injectedProse: string;
@@ -81,6 +82,15 @@ export function injectAuthoredDialogue(input: AuthoredDialogueInput): AuthoredDi
     const tail = prose.slice(cueEnd);
     const separator = /^\s+(?:in|with)\b/iu.test(tail) ? ',' : '';
     injectedProse = `${prose.slice(0, speechCue.index)}${canonicalLine}${separator}${tail}`;
+    const cueIsAfterShotOne = /\[Shot\s+(?:[2-9]|[1-9]\d+)\]/u.test(
+      prose.slice(0, speechCue.index),
+    );
+    if (cueIsAfterShotOne && !injectedProse.includes(preDialogueGuard)) {
+      injectedProse = injectedProse.replace(
+        /\[Shot 1\]/u,
+        (marker) => `${marker} ${preDialogueGuard}`,
+      );
+    }
   } else {
     const shotOne = /\[Shot 1\]/;
     injectedProse = shotOne.test(prose)

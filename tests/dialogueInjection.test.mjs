@@ -41,6 +41,7 @@ test('maps the authored spokenLines field into the exact canonical H3 render pro
     result.prose,
     /<Subject 1> \(S1\) says: <d>\[English\] Why does my lip colour always look tired before I do\?<\/d>/,
   );
+  assert.doesNotMatch(result.prose, /remains silent until the later dialogue cue/i);
 });
 
 test('does not duplicate an already canonical line', () => {
@@ -55,6 +56,7 @@ test('does not duplicate an already canonical line', () => {
     : { prose: '' };
 
   assert.equal(result.prose.split(canonical).length - 1, 1);
+  assert.doesNotMatch(result.prose, /remains silent until the later dialogue cue/i);
 });
 
 test('replaces the Veyra application speech cue in Shot 3 instead of speaking at Shot 1', () => {
@@ -74,11 +76,25 @@ test('replaces the Veyra application speech cue in Shot 3 instead of speaking at
 
   assert.doesNotMatch(shot1, /<d>/, 'the intended line must not be moved to local 0s');
   assert.match(
+    shot1,
+    /<Subject 1> keeps her lips closed and remains silent until the later dialogue cue; no speech or voiceover is heard before then\./,
+  );
+  assert.match(
     shot3,
     /<Subject 1> \(S1\) says: <d>\[English\] One swipe\. Coffee check, daylight check—and it still feels like my lips\.<\/d>/,
   );
   assert.doesNotMatch(result.prose, /speaks her impression/i, 'the stale speech cue would trigger a second voice');
   assert.equal((result.prose.match(/<d>/g) ?? []).length, 1);
+  assert.equal(
+    (result.prose.match(/remains silent until the later dialogue cue/gi) ?? []).length,
+    1,
+  );
+  const secondPass = h3.injectAuthoredDialogue({
+    prose: result.prose,
+    spokenLines: VEYRA_APPLICATION.spokenLines,
+    language: 'English',
+  });
+  assert.equal(secondPass.prose, result.prose, 'the guard and dialogue remain idempotent');
 });
 
 test('falls back to immediately after Shot 1 only when no authored speech cue exists', () => {
@@ -93,4 +109,5 @@ test('falls back to immediately after Shot 1 only when no authored speech cue ex
     /^\[Shot 1\] <Subject 1> \(S1\) says: <d>\[English\] This is the one\.<\/d>/,
   );
   assert.equal((result.prose.match(/<d>/g) ?? []).length, 1);
+  assert.doesNotMatch(result.prose, /remains silent until the later dialogue cue/i);
 });

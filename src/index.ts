@@ -766,7 +766,7 @@ async function padClip(path: string, padStart: number, padEnd: number, signal?: 
 // ══════════════════════════════════════════════════════════════════════════
 const H3_MANIFEST: RunnerManifest = {
   tool: 'comfy.minimax_h3_r2v',
-  version: '0.3.1',
+  version: '0.3.2',
   engineCompat: '>=0.1.0',
   credentials: [],
   displayName: 'MiniMax H3 Reference-to-Video (multi-cut AV clip)',
