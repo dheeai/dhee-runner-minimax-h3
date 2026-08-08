@@ -123,13 +123,35 @@ test('an empty landmark list is rejected', () => {
   );
 });
 
-test('a ledger naming an undeclared subject is rejected', () => {
+test('continuationFrom may name someone who is NOT in this scene — they left', () => {
+  // The inherited boundary is the PREVIOUS scene's end state. A woman at a
+  // window in scene 1 is legitimately named there and absent from scene 2.
+  // Rejecting it failed a real film on
+  // `continuationFrom.characterPositions[0].subjectId "meera" is unknown`.
+  assert.doesNotThrow(() => validateStructuredScenePerformance(
+    scene({ continuationFrom: { ...LEDGER(), characterPositions: [
+      { subjectId: 'meera', screenPosition: 'at the window', facing: 'away', pose: 'standing' },
+    ] } }),
+    ['sudha', 'rina', 'kitchen'], true,
+  ));
+});
+
+test('a departed character is not DESCRIBED as visible, or H3 would invent one', () => {
+  const text = body(scene({ continuationFrom: { ...LEDGER(), characterPositions: [
+    ...LEDGER().characterPositions,
+    { subjectId: 'meera', screenPosition: 'at the window', facing: 'away', pose: 'standing' },
+  ] } }));
+  assert.match(text, /sudha is in the left third/);
+  assert.ok(!text.includes('meera is at the window'), 'someone with no plate must not be staged');
+});
+
+test('continuationAnchor DOES still reject an unknown subject — it is this scene', () => {
   assert.throws(
     () => validateStructuredScenePerformance(
-      scene({ continuationFrom: { ...LEDGER(), characterPositions: [{ subjectId: 'ghost', screenPosition: 'left', facing: 'camera', pose: 'standing' }] } }),
+      scene({ continuationAnchor: { ...LEDGER(), characterPositions: [{ subjectId: 'ghost', screenPosition: 'left', facing: 'camera', pose: 'standing' }] } }),
       ['sudha', 'rina', 'kitchen'], true,
     ),
-    /continuationFrom\.characterPositions\[0\]\.subjectId "ghost" is unknown/,
+    /continuationAnchor\.characterPositions\[0\]\.subjectId "ghost" is unknown/,
   );
 });
 
@@ -147,16 +169,6 @@ test('a legitimate off-stage reason passes', () => {
   assert.doesNotThrow(() => validateStructuredScenePerformance(
     scene({ continuationFrom: LEDGER() }), ['sudha', 'rina', 'kitchen'], true,
   ));
-});
-
-test('the anchor ledger is validated too, not just the inherited one', () => {
-  assert.throws(
-    () => validateStructuredScenePerformance(
-      scene({ continuationAnchor: { ...LEDGER(), characterPositions: [{ subjectId: 'nobody', screenPosition: 'left', facing: 'camera', pose: 'standing' }] } }),
-      ['sudha', 'rina', 'kitchen'], true,
-    ),
-    /continuationAnchor\.characterPositions\[0\]\.subjectId "nobody" is unknown/,
-  );
 });
 
 test('offStage may name someone NOT in references — that is the whole point', () => {

@@ -1279,6 +1279,72 @@ const H3_DESC: RunnerDescription = {
   },
 };
 
+/**
+ * Stop an INVENTED description from arguing with a real photograph.
+ *
+ * When an operator supplies a photo for a character, the plate is theirs — but
+ * the story bible has already invented an appearance for that character from
+ * the prose, and that description reaches H3 as `references[].appearsAs`. So
+ * H3 is handed a photograph AND a confident paragraph describing a different
+ * woman's hair, skin and clothing. They do not cancel out; they blend into a
+ * third person.
+ *
+ * Measured on the first desktop run: a supplied photo of Meera arrived
+ * alongside the bible's "pale complexion, oval face, long black hair pulled
+ * back loosely, simple white cotton kurta".
+ *
+ * So for a photographed character, `appearsAs` is replaced with a statement
+ * that defers to the image. `job` is left alone — it says which FEATURES to
+ * follow, which is still exactly what we want.
+ */
+function deferAppearanceToPhoto(
+  promptDoc: Record<string, unknown>,
+  cfg: Record<string, unknown>,
+  ctx: RunnerContext,
+  log: (m: string) => void,
+): void {
+  const pairs = Array.isArray(cfg['castPhotoInputs'])
+    ? (cfg['castPhotoInputs'] as Array<Record<string, unknown>>)
+    : [];
+  if (!pairs.length) return;
+  const refs = promptDoc['references'];
+  if (!Array.isArray(refs)) return;
+
+  const named: string[] = [];
+  for (const pair of pairs) {
+    const photoInput = typeof pair['photoInput'] === 'string' ? pair['photoInput'] : '';
+    const nameInput = typeof pair['nameInput'] === 'string' ? pair['nameInput'] : '';
+    if (!photoInput || !nameInput) continue;
+    const photo = ctx.inputs[photoInput];
+    const typed = ctx.inputs[nameInput];
+    if (typeof photo !== 'string' || !photo) continue;
+    if (typeof typed !== 'string' || !typed.trim()) continue;
+    named.push(typed.trim());
+  }
+  if (!named.length) return;
+
+  for (const raw of refs) {
+    if (!raw || typeof raw !== 'object') continue;
+    const ref = raw as Record<string, unknown>;
+    const id = typeof ref['id'] === 'string' ? ref['id'] : '';
+    if (!id || ref['type'] !== 'character') continue;
+    const match = named.find((n) => castNameMatchesRefId(n, id));
+    if (!match) continue;
+    ref['appearsAs'] = `${match}, exactly as photographed — their face, hair, colouring and clothing are taken from the image and not from any description`;
+    log(`${id}: appearance deferred to the supplied photo of "${match}"`);
+  }
+}
+
+/** Token-containment match, mirroring dhee-runner-image-edit's castNameMatchesItem. */
+function castNameMatchesRefId(typedName: string, refId: string): boolean {
+  const tokens = (v: string): string[] => v.toLowerCase().split(/[^a-z0-9]+/i).filter(Boolean);
+  const typed = tokens(typedName);
+  if (!typed.length) return false;
+  const idTokens = new Set(tokens(refId));
+  if (!idTokens.size) return false;
+  return typed.every((t) => idTokens.has(t));
+}
+
 async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const cfg = ctx.node.runner.config as Record<string, unknown>;
   const tag = (m: string) => `comfy.minimax_h3_r2v: ${m}`;
@@ -1313,6 +1379,10 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     const perfNotes = validateStructuredScenePerformance(promptDoc, expectedIds ?? [], rb(cfg, 'strictPerformance') ?? false);
     for (const note of perfNotes) ctx.log(tag(`${itemId}: ${note}`));
   }
+  if (promptDoc && useStructuredPrompt) {
+    deferAppearanceToPhoto(promptDoc, cfg, ctx, (m) => ctx.log(tag(`${itemId}: ${m}`)));
+  }
+
   const authored = promptDoc ? rn(promptDoc, rs(cfg, 'durationField') ?? 'duration') : undefined;
   const fps = rn(cfg, 'fps') ?? H3_FPS;
   const maxSeconds = rn(cfg, 'maxSeconds') ?? H3_MAX_SECONDS;

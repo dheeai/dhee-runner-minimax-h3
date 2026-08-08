@@ -690,11 +690,16 @@ function deriveArrivals(value: StructuredScenePrompt, previousEntities: readonly
   return [...acting].filter((id) => !wasPresent.has(id));
 }
 
-function compileContinuationFrom(from: ContinuationFrom): string {
+function compileContinuationFrom(from: ContinuationFrom, presentIds?: ReadonlySet<string>): string {
   const landmarks = from.fixedLandmarks
     .map((l) => `${l.name} ${l.screenPosition}`)
     .join(', ');
+  // Drop anyone the inherited boundary lists who is not in THIS scene. They
+  // were in the room when the previous scene ended and have since left; saying
+  // "X is in the left third" would put a character on screen that this scene
+  // has no plate for, and H3 would invent one.
   const people = from.characterPositions
+    .filter((c) => !presentIds || presentIds.has(c.subjectId))
     .map((c) => `${c.subjectId} is ${c.screenPosition}, ${c.facing}, ${c.pose}`)
     .join('; ');
   const away = (from.offStage ?? [])
@@ -988,34 +993,34 @@ export function validateStructuredScenePerformance(
     }
   });
 
-  // Continuity ledgers name subjects, and a ledger that names someone the scene
-  // never declared is a boundary describing a different film. Checked here
-  // rather than in the parser because only this function knows the allowlist.
-  for (const field of ['continuationAnchor', 'continuationFrom'] as const) {
-    const ledger = root[field];
-    if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) continue;
-    const entries = ledger as Record<string, unknown>;
-    // ONLY characterPositions. Those subjects are VISIBLE at the boundary, so a
-    // plate must exist for them and the id has to resolve.
-    //
-    // `offStage` is deliberately NOT checked against references[], because an
-    // off-stage character is BY DEFINITION not in this scene and therefore has
-    // no plate and no reference entry. Validating it here made the field
-    // unusable for the exact case it exists for: the cold_plate run authored
-    // scene 1 with the daughter downstairs, could not legally name her, left
-    // offStage empty — and scene 2 staged her already standing in the doorway
-    // instead of arriving, which is the defect the field was added to prevent.
-    const rawPositions = entries['characterPositions'];
-    if (Array.isArray(rawPositions)) {
-      rawPositions.forEach((rawEntry, index) => {
-        const entry = structuredRecord(rawEntry);
-        const subjectId = performancePathText(entry['subjectId'], `${field}.characterPositions[${index}].subjectId`);
-        if (!expected.has(subjectId)) {
-          throw new Error(
-            `${field}.characterPositions[${index}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`,
+  // `continuationAnchor` describes the state THIS scene ends in, so everyone
+  // visible in it is in this scene and must have a plate. Checked.
+  //
+  // `continuationFrom` is NOT checked, and neither is either ledger's
+  // `offStage`. The inherited boundary is the PREVIOUS scene's end state, which
+  // routinely names someone who then leaves — a woman at a window in scene 1
+  // who is not in scene 2 at all. Rejecting that failed a real film on
+  // `continuationFrom.characterPositions[0].subjectId "meera" is unknown`,
+  // which is the same mistake `offStage` validation made: treating a boundary
+  // ledger as if it described this scene's cast. It does not.
+  {
+    const anchor = root['continuationAnchor'];
+    if (anchor && typeof anchor === 'object' && !Array.isArray(anchor)) {
+      const rawPositions = (anchor as Record<string, unknown>)['characterPositions'];
+      if (Array.isArray(rawPositions)) {
+        rawPositions.forEach((rawEntry, index) => {
+          const entry = structuredRecord(rawEntry);
+          const subjectId = performancePathText(
+            entry['subjectId'],
+            `continuationAnchor.characterPositions[${index}].subjectId`,
           );
-        }
-      });
+          if (!expected.has(subjectId)) {
+            throw new Error(
+              `continuationAnchor.characterPositions[${index}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`,
+            );
+          }
+        });
+      }
     }
   }
 
@@ -1361,7 +1366,10 @@ export function compileStructuredScenePrompt(
   // The inherited boundary sits between the style sentence and the first shot —
   // the placement the hand-authored probe used, and the last thing H3 reads
   // before it starts staging [Shot 1].
-  let continuationOpening = value.continuationFrom ? compileContinuationFrom(value.continuationFrom) : '';
+  const sceneReferenceIds = new Set((value.references ?? []).map((ref) => ref.id));
+  let continuationOpening = value.continuationFrom
+    ? compileContinuationFrom(value.continuationFrom, sceneReferenceIds)
+    : '';
   // A character acting in this scene who was not in the previous section must be
   // SEEN TO ENTER. Independent of continuationFrom, because the plan knows this
   // and the author does not reliably. Phrased non-vocally: an arrival described
