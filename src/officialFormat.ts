@@ -499,7 +499,13 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
         const speakerId = structuredText(line['speakerId'], `${linePath}.speakerId`);
         if (!/^S\d+$/.test(speakerId)) throw new Error(`${linePath}.speakerId must look like S1`);
         const subjectId = structuredText(line['subjectId'], `${linePath}.subjectId`);
-        if (!referenceIds.has(subjectId)) throw new Error(`${linePath}.subjectId references unknown id ${subjectId}`);
+        // THIRD place this same rule was enforced. An off-screen voice has no
+        // visual and therefore no plate, so its speaker is legitimately not in
+        // references[]. See 0.6.8/0.6.9 — the film died three times on one
+        // off-screen word because the check lived in three files.
+        if (line['offScreen'] !== true && !referenceIds.has(subjectId)) {
+          throw new Error(`${linePath}.subjectId references unknown id ${subjectId}`);
+        }
         const knownSubject = speakerSubjects.get(speakerId);
         if (knownSubject && knownSubject !== subjectId) {
           throw new Error(`${linePath}.speakerId ${speakerId} changes subject ownership`);
@@ -1264,7 +1270,15 @@ function compileStructuredDialogue(
   visibleInShot: boolean,
 ): string {
   const subjectIndex = subjectIndexById.get(line.subjectId);
-  if (!subjectIndex) throw new Error(`dialogue subject ${line.subjectId} is not in references`);
+  // FOURTH place the plate requirement lived. A speaker with no <Subject N> is
+  // fine when the line is OFF SCREEN: there is nothing to show, so there is
+  // nothing to bind. Base guide 4.4 still wants the fixed voiceover phrase, the
+  // speaker id and the vocal identity — all of which survive without a plate,
+  // and `voicePrompt` is exactly the identity H3 needs to stop picking a voice
+  // at random. Only an ON-screen speaker genuinely needs a subject to point at.
+  if (!subjectIndex && !line.offScreen) {
+    throw new Error(`dialogue subject ${line.subjectId} is not in references`);
+  }
   const tag = `<d>[${line.language}] ${line.exactWords}</d>`;
   // `says ${delivery}` needs an adverbial. Models supply bare adjectives
   // ("defiant, gritty"), which reads as `says defiant, gritty:`. Adjective-only
@@ -1279,6 +1293,13 @@ function compileStructuredDialogue(
   }
   // Base guide 4.4: voiceover uses this EXACT phrase, and when the speaker is
   // also on screen the lips-closed statement follows immediately after the tag.
+  if (!subjectIndex) {
+    // Unplated off-screen voice: name the voice instead of a subject, so H3 has
+    // a vocal identity to synthesise from and no image to look for.
+    const identity = (line.voicePrompt ?? '').trim();
+    const who = identity ? `An off-screen voice — ${inlineFragment(identity)} —` : 'An off-screen voice';
+    return `${who} (${line.speakerId}) says in an off-screen voiceover, ${adverbial}: ${tag}`;
+  }
   const lead = `<Subject ${subjectIndex}> (${line.speakerId}) says in an off-screen voiceover, ${adverbial}: ${tag}`;
   return visibleInShot ? `${lead} while their lips remain completely closed.` : lead;
 }

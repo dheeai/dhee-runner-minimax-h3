@@ -368,3 +368,27 @@ test('an off-screen speaker still needs a vocal identity', () => {
     /voicePrompt/,
   );
 });
+
+test('an unplated off-screen voice compiles, naming the voice instead of a subject', () => {
+  // The plate requirement lived in FOUR places. This is the compile path — the
+  // one an offline check caught before it cost another render cycle.
+  const v = scene({
+    spokenLines: ['Sereth.'],
+    shots: [{
+      id: 's1', startTime: 0, endTime: 8,
+      composition: 'Wide on the quarry floor.',
+      acting: [{ subjectId: 'sudha', tactic: 'hold', observableBehavior: 'stands still', beatChange: 'none' }],
+      sceneryIds: ['kitchen'], action: 'She stops.', cameraMotion: 'Static Shot', sound: 'Stone settling.',
+      dialogue: [{
+        speakerId: 'S1', subjectId: 'ash_sworn_captain', language: 'English',
+        exactWords: 'Sereth.', delivery: 'flat', offScreen: true,
+        voicePrompt: 'a dry male voice, unhurried',
+      }],
+    }],
+  });
+  const { sections } = compileStructuredScenePrompt(v, { expectedReferenceIds: ['sudha', 'rina', 'kitchen'] });
+  const dd = sections.find((s) => s.name === 'detailed_description').body;
+  assert.match(dd, /An off-screen voice — a dry male voice, unhurried — \(S1\) says in an off-screen voiceover/);
+  assert.match(dd, /<d>\[English\] Sereth\.<\/d>/);
+  assert.ok(!/<Subject \d+> \(S1\)/.test(dd), 'must not invent a subject index for an unplated voice');
+});
