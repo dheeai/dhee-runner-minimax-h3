@@ -216,3 +216,54 @@ test('an already-N/A score is left alone', () => {
   const { sections } = compileStructuredScenePrompt(scene(), { expectedReferenceIds: ['sudha', 'rina', 'kitchen'] });
   assert.equal(sections.find((s) => s.name === 'non_diegetic_music').body, 'N/A');
 });
+
+// ── derived arrivals ────────────────────────────────────────────────────────
+// offStage was left empty by the author on every scene of the first real run,
+// no matter how the prompt was worded. But the answer is implied by a field the
+// author DOES fill: a character acting in this scene who is absent from
+// continuationFrom.characterPositions was not in the room when it opened.
+
+const twoHander = (extra = {}) => scene({
+  shots: [{
+    id: 's1', startTime: 0, endTime: 8,
+    composition: 'Wide on the kitchen.',
+    acting: [
+      { subjectId: 'sudha', tactic: 'wait', observableBehavior: 'stands', beatChange: 'none' },
+      { subjectId: 'rina', tactic: 'enter', observableBehavior: 'steps in', beatChange: 'arrives' },
+    ],
+    sceneryIds: ['kitchen'],
+    action: 'One waits, one comes in.',
+    cameraMotion: 'Static Shot',
+    sound: 'A tubelight hums.',
+    dialogue: [],
+  }],
+  ...extra,
+});
+
+test('a character absent from the inherited positions is ordered to be seen arriving', () => {
+  const text = body(twoHander({ continuationFrom: LEDGER() }));  // LEDGER has only sudha present
+  assert.match(text, /rina is not in the room as the scene opens/);
+  assert.match(text, /must SHOW them come in/);
+  assert.ok(text.indexOf('not in the room') < text.indexOf('[Shot 1]'), 'must land before the first shot');
+});
+
+test('no arrival is claimed for someone already in the room', () => {
+  const both = { ...LEDGER(), characterPositions: [
+    ...LEDGER().characterPositions,
+    { subjectId: 'rina', screenPosition: 'in the doorway', facing: 'toward camera', pose: 'standing' },
+  ] };
+  const text = body(twoHander({ continuationFrom: both }));
+  assert.ok(!text.includes('not in the room as the scene opens'), 'nobody needs to arrive here');
+});
+
+test('the derivation does not depend on offStage being filled', () => {
+  const noOffStage = { ...LEDGER() };
+  delete noOffStage.offStage;
+  const text = body(twoHander({ continuationFrom: noOffStage }));
+  assert.match(text, /rina is not in the room as the scene opens/);
+});
+
+test('the first scene of a film gets no arrival directive', () => {
+  const text = body(twoHander());
+  assert.ok(!text.includes('not in the room as the scene opens'));
+});

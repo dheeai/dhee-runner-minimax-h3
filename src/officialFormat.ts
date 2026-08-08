@@ -656,6 +656,34 @@ function parseContinuityLedger(raw: unknown, field: string): ContinuityLedger | 
  * fatal `auditDialogueIntegrity` exists to catch, and this compiler must not be
  * the thing that introduces it.
  */
+/**
+ * Who was NOT in the room when this scene began, derived rather than declared.
+ *
+ * `offStage` was supposed to carry this, and on the first real end-to-end run
+ * the author left it empty in every scene no matter how the prompt was worded —
+ * the drift this bundle keeps hitting. But the answer is already implied by a
+ * field the author DOES populate reliably: anyone acting in this scene who is
+ * absent from `continuationFrom.characterPositions` was not in the room at the
+ * boundary, and therefore has to be seen to come in.
+ *
+ * Deriving it removes the author from the loop entirely. `offStage` stays as the
+ * richer, optional signal — it can say WHERE someone waits, which this cannot —
+ * but nothing depends on it being filled.
+ */
+function deriveArrivals(value: StructuredScenePrompt, from: ContinuationFrom): string[] {
+  const presentAtOpen = new Set(from.characterPositions.map((c) => c.subjectId));
+  const characterIds = new Set(
+    value.references.filter((ref) => ref.type === 'character').map((ref) => ref.id),
+  );
+  const acting = new Set<string>();
+  for (const shot of value.shots ?? []) {
+    for (const entry of shot.acting ?? []) {
+      if (characterIds.has(entry.subjectId)) acting.add(entry.subjectId);
+    }
+  }
+  return [...acting].filter((id) => !presentAtOpen.has(id));
+}
+
 function compileContinuationFrom(from: ContinuationFrom): string {
   const landmarks = from.fixedLandmarks
     .map((l) => `${l.name} ${l.screenPosition}`)
@@ -1327,7 +1355,24 @@ export function compileStructuredScenePrompt(
   // The inherited boundary sits between the style sentence and the first shot —
   // the placement the hand-authored probe used, and the last thing H3 reads
   // before it starts staging [Shot 1].
-  const continuationOpening = value.continuationFrom ? compileContinuationFrom(value.continuationFrom) : '';
+  let continuationOpening = value.continuationFrom ? compileContinuationFrom(value.continuationFrom) : '';
+  if (value.continuationFrom && continuationOpening) {
+    // A character who acts in this scene but was not in the room when it opened
+    // must be SEEN TO ENTER. Stated last, so it is the final instruction before
+    // [Shot 1] — and stated non-vocally, because an arrival described with a
+    // voice and no words is the speech-shaped-noise fatal.
+    const arrivals = deriveArrivals(value, value.continuationFrom);
+    if (arrivals.length) {
+      const who = arrivals.join(' and ');
+      continuationOpening += ` ${tidyPeriods(
+        `${who} ${arrivals.length > 1 ? 'are' : 'is'} not in the room as the scene opens. ` +
+          `The scene must SHOW ${arrivals.length > 1 ? 'them' : 'them'} come in — entering frame, ` +
+          `stepping through a doorway or arriving into the light — before anything else ` +
+          `${arrivals.length > 1 ? 'they do' : 'they do'} in this scene. ` +
+          `${arrivals.length > 1 ? 'They are' : 'They are'} never simply present in the first frame.`,
+      )}`;
+    }
+  }
   const detailedDescription = [styleOpening, continuationOpening, performance, shotDescription, trailer]
     .filter(Boolean).join('\n\n');
 
