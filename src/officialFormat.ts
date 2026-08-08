@@ -670,9 +670,15 @@ function compileContinuationFrom(from: ContinuationFrom): string {
     .map((p) => `${p.name}: ${p.state}`)
     .join('; ');
 
+  // The lead is deliberately NEUTRAL about a previous clip. H3 has never seen
+  // one — it renders this call and nothing else — so "this continues from the
+  // previous scene" spends words telling it about something it cannot use, and
+  // is a small lie on the film's first scene, which authors populate anyway.
+  // What earns its place is the STATE. A hard cut keeps its clause because the
+  // time or place shift is real information about what to render.
   const lead = from.hardCut
-    ? `This scene breaks deliberately from the previous one — ${inlineFragment(from.hardCut)} — and opens on a new state:`
-    : 'This scene continues directly from the previous one and opens on exactly the state it ended in:';
+    ? `After a deliberate break — ${inlineFragment(from.hardCut)} — the scene opens on exactly this state:`
+    : 'The scene opens on exactly this state:';
 
   const clauses = [
     `the set is fixed with ${landmarks}`,
@@ -682,8 +688,7 @@ function compileContinuationFrom(from: ContinuationFrom): string {
     props ? `Prop state at the opening — ${props}` : '',
   ].filter(Boolean);
 
-  const tail = from.hardCut ? '' : ' Nothing else in the room has moved.';
-  return tidyPeriods(`${lead} ${clauses.join('. ')}.${tail}`);
+  return tidyPeriods(`${lead} ${clauses.join('. ')}.`);
 }
 
 const PERFORMANCE_REQUIRED_FIELDS = [
@@ -956,15 +961,24 @@ export function validateStructuredScenePerformance(
     const ledger = root[field];
     if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) continue;
     const entries = ledger as Record<string, unknown>;
-    for (const listName of ['characterPositions', 'offStage'] as const) {
-      const rawList = entries[listName];
-      if (!Array.isArray(rawList)) continue;
-      rawList.forEach((rawEntry, index) => {
+    // ONLY characterPositions. Those subjects are VISIBLE at the boundary, so a
+    // plate must exist for them and the id has to resolve.
+    //
+    // `offStage` is deliberately NOT checked against references[], because an
+    // off-stage character is BY DEFINITION not in this scene and therefore has
+    // no plate and no reference entry. Validating it here made the field
+    // unusable for the exact case it exists for: the cold_plate run authored
+    // scene 1 with the daughter downstairs, could not legally name her, left
+    // offStage empty — and scene 2 staged her already standing in the doorway
+    // instead of arriving, which is the defect the field was added to prevent.
+    const rawPositions = entries['characterPositions'];
+    if (Array.isArray(rawPositions)) {
+      rawPositions.forEach((rawEntry, index) => {
         const entry = structuredRecord(rawEntry);
-        const subjectId = performancePathText(entry['subjectId'], `${field}.${listName}[${index}].subjectId`);
+        const subjectId = performancePathText(entry['subjectId'], `${field}.characterPositions[${index}].subjectId`);
         if (!expected.has(subjectId)) {
           throw new Error(
-            `${field}.${listName}[${index}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`,
+            `${field}.characterPositions[${index}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`,
           );
         }
       });

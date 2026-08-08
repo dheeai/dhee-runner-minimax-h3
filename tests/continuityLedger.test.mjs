@@ -71,7 +71,7 @@ const body = (value) => {
 
 test('continuationFrom is compiled into directed prose before the first shot', () => {
   const text = body(scene({ continuationFrom: LEDGER() }));
-  const opening = text.indexOf('continues directly from the previous one');
+  const opening = text.indexOf('The scene opens on exactly this state');
   assert.ok(opening > -1, 'the inherited boundary should be stated');
   assert.ok(opening < text.indexOf('[Shot 1]'), 'it must come before the first shot marker');
 
@@ -99,15 +99,13 @@ test('continuationAnchor is NOT emitted — it describes a state after the clip 
 
 test('a hard cut is stated as a break instead of asserting continuity', () => {
   const text = body(scene({ continuationFrom: { ...LEDGER(), hardCut: 'two hours later, the same kitchen' } }));
-  assert.match(text, /breaks deliberately from the previous one — two hours later/);
-  assert.ok(!text.includes('continues directly from'), 'a hard cut must not claim continuity');
-  assert.ok(!text.includes('Nothing else in the room has moved'), 'the no-change tail is wrong after a break');
+  assert.match(text, /After a deliberate break — two hours later/);
 });
 
 test('the first scene of a film compiles unchanged', () => {
   const text = body(scene());
-  assert.ok(!text.includes('continues directly from'));
-  assert.ok(!text.includes('breaks deliberately'));
+  assert.ok(!text.includes('The scene opens on exactly this state'));
+  assert.ok(!text.includes('After a deliberate break'));
   assert.match(text, /\[Shot 1\]/);
 });
 
@@ -154,11 +152,22 @@ test('a legitimate off-stage reason passes', () => {
 test('the anchor ledger is validated too, not just the inherited one', () => {
   assert.throws(
     () => validateStructuredScenePerformance(
-      scene({ continuationAnchor: { ...LEDGER(), offStage: [{ subjectId: 'nobody', where: 'away', reason: 'gone' }] } }),
+      scene({ continuationAnchor: { ...LEDGER(), characterPositions: [{ subjectId: 'nobody', screenPosition: 'left', facing: 'camera', pose: 'standing' }] } }),
       ['sudha', 'rina', 'kitchen'], true,
     ),
-    /continuationAnchor\.offStage\[0\]\.subjectId "nobody" is unknown/,
+    /continuationAnchor\.characterPositions\[0\]\.subjectId "nobody" is unknown/,
   );
+});
+
+test('offStage may name someone NOT in references — that is the whole point', () => {
+  // An off-stage character has no plate and no reference entry. Validating this
+  // against references[] made the field unusable for the case it exists for:
+  // cold_plate scene 1 could not declare the daughter downstairs, so scene 2
+  // staged her already in the doorway instead of arriving.
+  assert.doesNotThrow(() => validateStructuredScenePerformance(
+    scene({ continuationAnchor: { ...LEDGER(), offStage: [{ subjectId: 'nisha', where: 'one flight down in the stairwell', reason: 'she has not come up yet' }] } }),
+    ['sudha', 'rina', 'kitchen'], true,
+  ));
 });
 
 test('a legacy string continuationAnchor is now rejected rather than silently emitted', () => {
