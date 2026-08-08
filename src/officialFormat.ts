@@ -202,7 +202,58 @@ export interface StructuredScenePrompt {
   purpose: string;
   shotStructure: StructuredShotStructure;
   performance?: StructuredScenePerformance;
-  continuationAnchor?: string;
+  /**
+   * The state this scene ENDS in, for the next scene to open on.
+   *
+   * Was a free-prose string, and was emitted into the prose of the scene that
+   * WROTE it — the one scene that cannot benefit from it. Nothing read it, so
+   * every scene was authored blind to its predecessor and the film accumulated
+   * prop-state contradictions, missing entrances and a set that moved between
+   * cuts. Now a structured ledger, and NOT emitted into this scene's prose at
+   * all: it describes a state after the clip ends, and the shots already show it.
+   */
+  continuationAnchor?: ContinuityLedger;
+  /**
+   * The state this scene OPENS on, inherited from the previous scene's
+   * `continuationAnchor`. Absent on the first scene of a film.
+   */
+  continuationFrom?: ContinuationFrom;
+}
+
+/**
+ * A scene boundary as a checkable ledger rather than a sentence.
+ *
+ * The four fields are MiniMax's own (`3d-animation-short-generator`'s shot-table
+ * spec: Fixed Landmarks / Character Positions / Exited Character Status /
+ * Lighting Baseline), plus prop state, which is what the shipped soap actually
+ * contradicted itself on — scene 1 ended with the tea poured and steaming and
+ * scene 2 opened asserting the cups were not yet visible.
+ *
+ * Screen positions are the point. "the stove is in the kitchen" is not a
+ * landmark entry; "the stove is in the left third against the back wall" is,
+ * because only the second survives being handed to the next render.
+ */
+export interface ContinuityLedger {
+  /** Fixed set features and where they sit ON SCREEN. At least one. */
+  fixedLandmarks: { name: string; screenPosition: string }[];
+  /** Everyone visible at the boundary: where in frame, facing, and pose. */
+  characterPositions: { subjectId: string; screenPosition: string; facing: string; pose: string }[];
+  /** Everyone off-screen at the boundary, with where they are and why. */
+  offStage?: { subjectId: string; where: string; reason: string }[];
+  /** Inherited key/fill/rim, plus any modifier in force at the boundary. */
+  lightingBaseline: string;
+  /** Handled props and their state — poured, moved, held, set down. */
+  propStates?: { name: string; state: string }[];
+}
+
+export interface ContinuationFrom extends ContinuityLedger {
+  /**
+   * Set ONLY when this scene deliberately breaks from the previous one — a time
+   * skip, a new location, a reset. Discontinuity is legitimate; undeclared
+   * discontinuity is the defect. When present the compiled opening states the
+   * break instead of asserting continuity.
+   */
+  hardCut?: string;
 }
 
 export interface StructuredSceneCompileOptions {
@@ -495,9 +546,18 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
   });
 
   const performanceValue = root['performance'];
-  const continuationAnchorValue = root['continuationAnchor'];
-  if (continuationAnchorValue !== undefined && typeof continuationAnchorValue !== 'string') {
-    throw new Error('continuationAnchor must be a string when supplied');
+  const continuationAnchorValue = parseContinuityLedger(root['continuationAnchor'], 'continuationAnchor');
+  const continuationFromValue = parseContinuityLedger(root['continuationFrom'], 'continuationFrom') as
+    | ContinuationFrom
+    | undefined;
+  if (continuationFromValue) {
+    const hardCut = (root['continuationFrom'] as Record<string, unknown>)['hardCut'];
+    if (hardCut !== undefined) {
+      if (typeof hardCut !== 'string' || !hardCut.trim()) {
+        throw new Error('continuationFrom.hardCut must be a non-empty string when supplied');
+      }
+      continuationFromValue.hardCut = hardCut.trim();
+    }
   }
   return {
     spokenLines,
@@ -512,8 +572,118 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
     purpose,
     shotStructure: rawShotStructure,
     performance: performanceValue as StructuredScenePerformance | undefined,
-    continuationAnchor: continuationAnchorValue as string | undefined,
+    continuationAnchor: continuationAnchorValue,
+    continuationFrom: continuationFromValue,
   };
+}
+
+/**
+ * Parse a continuity ledger, rejecting the shapes that would compile to nothing.
+ *
+ * A ledger whose landmarks have no screen position is the defect it exists to
+ * prevent, so an entry missing `screenPosition` is an error rather than a field
+ * quietly dropped — the whole point is that "left third" survives to the next
+ * render and "in the kitchen" does not.
+ */
+function parseContinuityLedger(raw: unknown, field: string): ContinuityLedger | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`${field} must be an object when supplied`);
+  }
+  const src = raw as Record<string, unknown>;
+
+  const str = (v: unknown, path: string): string => {
+    if (typeof v !== 'string' || !v.trim()) throw new Error(`${field}.${path} must be a non-empty string`);
+    return v.trim();
+  };
+  const list = (v: unknown, path: string, required: boolean): Record<string, unknown>[] => {
+    if (v === undefined || v === null) {
+      if (required) throw new Error(`${field}.${path} is required`);
+      return [];
+    }
+    if (!Array.isArray(v)) throw new Error(`${field}.${path} must be an array`);
+    return v.map((entry, i) => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+        throw new Error(`${field}.${path}[${i}] must be an object`);
+      }
+      return entry as Record<string, unknown>;
+    });
+  };
+
+  const fixedLandmarks = list(src['fixedLandmarks'], 'fixedLandmarks', true).map((e, i) => ({
+    name: str(e['name'], `fixedLandmarks[${i}].name`),
+    screenPosition: str(e['screenPosition'], `fixedLandmarks[${i}].screenPosition`),
+  }));
+  if (!fixedLandmarks.length) throw new Error(`${field}.fixedLandmarks must have at least one entry`);
+
+  const characterPositions = list(src['characterPositions'], 'characterPositions', true).map((e, i) => ({
+    subjectId: str(e['subjectId'], `characterPositions[${i}].subjectId`),
+    screenPosition: str(e['screenPosition'], `characterPositions[${i}].screenPosition`),
+    facing: str(e['facing'], `characterPositions[${i}].facing`),
+    pose: str(e['pose'], `characterPositions[${i}].pose`),
+  }));
+
+  const offStage = list(src['offStage'], 'offStage', false).map((e, i) => ({
+    subjectId: str(e['subjectId'], `offStage[${i}].subjectId`),
+    where: str(e['where'], `offStage[${i}].where`),
+    reason: str(e['reason'], `offStage[${i}].reason`),
+  }));
+
+  const propStates = list(src['propStates'], 'propStates', false).map((e, i) => ({
+    name: str(e['name'], `propStates[${i}].name`),
+    state: str(e['state'], `propStates[${i}].state`),
+  }));
+
+  return {
+    fixedLandmarks,
+    characterPositions,
+    lightingBaseline: str(src['lightingBaseline'], 'lightingBaseline'),
+    ...(offStage.length ? { offStage } : {}),
+    ...(propStates.length ? { propStates } : {}),
+  };
+}
+
+/**
+ * Compile the inherited boundary into DIRECTED PROSE, not labels.
+ *
+ * `key: value` pairs would land in the description as more of the non-visual
+ * metadata that already crowds out the visual budget, so every field becomes a
+ * clause H3 can render. The opening is placed after the style sentence and
+ * before the first shot marker, which is where the hand-authored probe put it.
+ *
+ * Off-stage characters are stated as position and reason ONLY. No speech verb
+ * may appear: "she calls from the hallway" with no <d> tag is exactly the
+ * fatal `auditDialogueIntegrity` exists to catch, and this compiler must not be
+ * the thing that introduces it.
+ */
+function compileContinuationFrom(from: ContinuationFrom): string {
+  const landmarks = from.fixedLandmarks
+    .map((l) => `${l.name} ${l.screenPosition}`)
+    .join(', ');
+  const people = from.characterPositions
+    .map((c) => `${c.subjectId} is ${c.screenPosition}, ${c.facing}, ${c.pose}`)
+    .join('; ');
+  const away = (from.offStage ?? [])
+    .map((o) => `${o.subjectId} is not in frame — ${o.where}, ${o.reason}`)
+    .join('; ');
+  const props = (from.propStates ?? [])
+    .map((p) => `${p.name}: ${p.state}`)
+    .join('; ');
+
+  const lead = from.hardCut
+    ? `This scene breaks deliberately from the previous one — ${inlineFragment(from.hardCut)} — and opens on a new state:`
+    : 'This scene continues directly from the previous one and opens on exactly the state it ended in:';
+
+  const clauses = [
+    `the set is fixed with ${landmarks}`,
+    `the light is ${inlineFragment(from.lightingBaseline)}`,
+    people,
+    away,
+    props ? `Prop state at the opening — ${props}` : '',
+  ].filter(Boolean);
+
+  const tail = from.hardCut ? '' : ' Nothing else in the room has moved.';
+  return tidyPeriods(`${lead} ${clauses.join('. ')}.${tail}`);
 }
 
 const PERFORMANCE_REQUIRED_FIELDS = [
@@ -778,8 +948,63 @@ export function validateStructuredScenePerformance(
       });
     }
   });
+
+  // Continuity ledgers name subjects, and a ledger that names someone the scene
+  // never declared is a boundary describing a different film. Checked here
+  // rather than in the parser because only this function knows the allowlist.
+  for (const field of ['continuationAnchor', 'continuationFrom'] as const) {
+    const ledger = root[field];
+    if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) continue;
+    const entries = ledger as Record<string, unknown>;
+    for (const listName of ['characterPositions', 'offStage'] as const) {
+      const rawList = entries[listName];
+      if (!Array.isArray(rawList)) continue;
+      rawList.forEach((rawEntry, index) => {
+        const entry = structuredRecord(rawEntry);
+        const subjectId = performancePathText(entry['subjectId'], `${field}.${listName}[${index}].subjectId`);
+        if (!expected.has(subjectId)) {
+          throw new Error(
+            `${field}.${listName}[${index}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`,
+          );
+        }
+      });
+    }
+  }
+
+  // An off-stage entry that describes someone SPEAKING is the exact fatal
+  // auditDialogueIntegrity catches downstream — "she calls from the hallway"
+  // with no <d> tag synthesises voice-shaped noise. Caught here so the message
+  // names the field instead of the compiled prose.
+  const from = root['continuationFrom'];
+  if (from && typeof from === 'object' && !Array.isArray(from)) {
+    const offStage = (from as Record<string, unknown>)['offStage'];
+    if (Array.isArray(offStage)) {
+      offStage.forEach((rawEntry, index) => {
+        const entry = structuredRecord(rawEntry);
+        const text = `${entry['where'] ?? ''} ${entry['reason'] ?? ''}`;
+        const verb = LEDGER_SPEECH_VERBS.find((v) => new RegExp(`\\b${v}\\b`, 'i').test(text));
+        if (verb) {
+          throw new Error(
+            `continuationFrom.offStage[${index}] describes speech ("${verb}"), which synthesises voice with no words. ` +
+              `State only where the subject is and why they are off screen.`,
+          );
+        }
+      });
+    }
+  }
   return notes;
 }
+
+/**
+ * Speech verbs forbidden in an off-stage ledger entry. Deliberately the plain
+ * forms only — this is a guard against describing an unvoiced line, not a
+ * general prose filter, and a false positive here blocks a legitimate scene.
+ */
+const LEDGER_SPEECH_VERBS = [
+  'says', 'said', 'speaks', 'speaking', 'shouts', 'shouting', 'calls', 'calling',
+  'whispers', 'whispering', 'murmurs', 'murmuring', 'replies', 'replying',
+  'asks', 'asking', 'answers', 'answering', 'voice',
+] as const;
 
 function compileStructuredActing(
   acting: StructuredShotActing,
@@ -1051,15 +1276,21 @@ export function compileStructuredScenePrompt(
   const performance = options.strictPerformance && value.performance
     ? compileStructuredPerformance(value.performance)
     : '';
-  const trailer = [
-    value.continuationAnchor ? tidyPeriods(`Continuation anchor: ${value.continuationAnchor}.`) : '',
-    compileNegatives(value.negatives),
-  ].filter(Boolean).join('\n');
+  // `continuationAnchor` is deliberately NOT compiled. It describes the state
+  // this scene ends in, for the NEXT scene to open on — a state after the clip
+  // is over. Emitting it here (as `Continuation anchor: …`) put a metadata label
+  // in the visual budget and told H3 to render something past its own last
+  // frame, in the one scene that could never benefit from it.
+  const trailer = compileNegatives(value.negatives);
   // Ref guide 5.2: in full-reference mode the style opening comes BEFORE the
   // first shot marker. It leads the description; the filmable half of
   // `performance` follows it, and the non-filmable half is not emitted at all.
   const styleOpening = value.style ? tidyPeriods(value.style.trim().replace(/\.*$/, '.')) : '';
-  const detailedDescription = [styleOpening, performance, shotDescription, trailer]
+  // The inherited boundary sits between the style sentence and the first shot —
+  // the placement the hand-authored probe used, and the last thing H3 reads
+  // before it starts staging [Shot 1].
+  const continuationOpening = value.continuationFrom ? compileContinuationFrom(value.continuationFrom) : '';
+  const detailedDescription = [styleOpening, continuationOpening, performance, shotDescription, trailer]
     .filter(Boolean).join('\n\n');
 
   const sections = [
