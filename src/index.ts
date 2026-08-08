@@ -538,17 +538,41 @@ export function composePrompt(bindingClause: string, prose: string, limit = H3_P
 }
 
 /**
- * Reject structured prompt references that cannot belong to this scene.
- *
- * The authoring schema can validate shape but cannot see the per-scene entity
- * list supplied by `scenes_plan`. Keep this check pure so it can run before any
- * reference image is loaded or any ComfyUI request is queued. `expectedIds` is
- * the authoritative scene-level inventory, not the whole story-bible map.
+ * Reference types that name a PROP or a BACKGROUND rather than a performer.
+ * A plate of one of these carries no identity: losing it costs a prop, not a
+ * character. Anything else — `character`, or a reference that declares no type
+ * at all — is treated as identity and left for the hard gate below.
  */
+const PROP_REFERENCE_TYPES = new Set(['object', 'prop', 'location', 'setting', 'environment']);
+
+/** Every id the shots actually put on screen as a performer or a speaker. */
+function citedSubjectIds(shots: unknown): Set<string> {
+  const cited = new Set<string>();
+  if (!Array.isArray(shots)) return cited;
+  for (const rawShot of shots) {
+    if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) continue;
+    const shot = rawShot as Record<string, unknown>;
+    for (const key of ['acting', 'dialogue']) {
+      const rows = shot[key];
+      if (!Array.isArray(rows)) continue;
+      for (const row of rows) {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+        const id = (row as Record<string, unknown>)['subjectId'];
+        if (typeof id === 'string' && id.trim()) cited.add(id.trim().toLowerCase());
+      }
+    }
+    const subjectIds = shot['subjectIds'];
+    if (Array.isArray(subjectIds)) {
+      for (const id of subjectIds) if (typeof id === 'string' && id.trim()) cited.add(id.trim().toLowerCase());
+    }
+  }
+  return cited;
+}
+
 /**
  * Drop scenery the section is not licensed to show, instead of failing the run.
  *
- * `sceneryIds` is the ONE place where a stray id is harmless to remove: it names
+ * Scenery is the ONE place where a stray id is harmless to remove: it names
  * objects and locations in the background, so losing one costs a prop, while
  * failing costs the whole render — and every scene after it.
  *
@@ -559,35 +583,89 @@ export function composePrompt(bindingClause: string, prose: string, limit = H3_P
  * added and did NOT hold — which is this bundle's own repeated finding: prose
  * rules drift, structural ones hold.
  *
- * Everything else still hard-fails. `references`, dialogue `subjectId` and
- * `acting[].subjectId` are identity-critical — silently dropping one of those
- * would change who is in the film, so those are worth stopping for.
+ * Scenery lives in TWO places, so both are pruned:
+ *   1. `shots[].sceneryIds[]` — the per-cut background list, and
+ *   2. `references[]` entries whose `type` is a PROP type and whose id no shot
+ *      cites as a performer or speaker.
+ * Pruning only (1) was inconsistent — the SAME unlicensed prop was quietly
+ * dropped from the shot and then hard-failed one line later from `references`:
+ *
+ *   ✗ scene_clip[scene_4]: unknown references[2].id="chocolate_bar";
+ *     expected IDs: megha, thatha, thatha_cottage_interior
+ *
+ * — a prop the plan licensed for an EARLIER section, staged again by the author
+ * of a later one. Dropping its plate changes no identity, because nothing in the
+ * scene acts or speaks as it.
+ *
+ * Everything else still hard-fails. A `character` reference, a reference with no
+ * declared type, a prop id some shot cites as a performer, dialogue `subjectId`
+ * and `acting[].subjectId` are identity-critical — silently dropping one of those
+ * would change who is in the film, so those are worth stopping for. The last
+ * reference is never pruned either: a scene left with zero plates cannot render,
+ * and the hard gate's message names the offending id, which an empty
+ * `references[]` error would not.
  *
  * Returns the ids it removed so the caller can log them; a silent drop would just
  * be a quieter version of the bug.
  */
 export function pruneUnlicensedScenery(scene: unknown, expectedIds: readonly string[]): string[] {
   if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return [];
+  const root = scene as Record<string, unknown>;
   const expected = new Set(expectedIds.map((id) => String(id).trim().toLowerCase()).filter(Boolean));
   if (!expected.size) return [];
-  const shots = (scene as Record<string, unknown>)['shots'];
-  if (!Array.isArray(shots)) return [];
   const dropped: string[] = [];
-  shots.forEach((rawShot, index) => {
-    if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) return;
-    const shot = rawShot as Record<string, unknown>;
-    const scenery = shot['sceneryIds'];
-    if (!Array.isArray(scenery)) return;
-    const kept = scenery.filter((id) => {
-      const ok = typeof id === 'string' && expected.has(id.trim().toLowerCase());
-      if (!ok && typeof id === 'string') dropped.push(`shots[${index}].sceneryIds="${id}"`);
-      return ok;
+
+  const references = root['references'];
+  if (Array.isArray(references) && references.length) {
+    const cited = citedSubjectIds(root['shots']);
+    const removed: string[] = [];
+    const kept = references.filter((rawRef, index) => {
+      if (!rawRef || typeof rawRef !== 'object' || Array.isArray(rawRef)) return true;
+      const ref = rawRef as Record<string, unknown>;
+      const id = typeof ref['id'] === 'string' ? ref['id'].trim() : '';
+      if (!id || expected.has(id.toLowerCase())) return true;
+      const type = typeof ref['type'] === 'string' ? ref['type'].trim().toLowerCase() : '';
+      if (!PROP_REFERENCE_TYPES.has(type)) return true;
+      if (cited.has(id.toLowerCase())) return true;
+      removed.push(`references[${index}].id="${id}"`);
+      return false;
     });
-    if (kept.length !== scenery.length) shot['sceneryIds'] = kept;
-  });
+    if (removed.length && kept.length) {
+      root['references'] = kept;
+      dropped.push(...removed);
+    }
+  }
+
+  const shots = root['shots'];
+  if (Array.isArray(shots)) {
+    shots.forEach((rawShot, index) => {
+      if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) return;
+      const shot = rawShot as Record<string, unknown>;
+      const scenery = shot['sceneryIds'];
+      if (!Array.isArray(scenery)) return;
+      const kept = scenery.filter((id) => {
+        const ok = typeof id === 'string' && expected.has(id.trim().toLowerCase());
+        if (!ok && typeof id === 'string') dropped.push(`shots[${index}].sceneryIds="${id}"`);
+        return ok;
+      });
+      if (kept.length !== scenery.length) shot['sceneryIds'] = kept;
+    });
+  }
+
   return dropped;
 }
 
+/**
+ * Reject structured prompt references that cannot belong to this scene.
+ *
+ * The authoring schema can validate shape but cannot see the per-scene entity
+ * list supplied by `scenes_plan`. Keep this check pure so it can run before any
+ * reference image is loaded or any ComfyUI request is queued. `expectedIds` is
+ * the authoritative scene-level inventory, not the whole story-bible map.
+ *
+ * Runs AFTER `pruneUnlicensedScenery`, which has already removed the stray ids
+ * that cost only a prop — so everything still standing here is identity.
+ */
 export function validateStructuredSceneReferences(scene: unknown, expectedIds: readonly string[]): void {
   if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return;
   const root = scene as Record<string, unknown>;

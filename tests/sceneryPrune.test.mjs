@@ -40,6 +40,55 @@ test('after pruning, the scene passes reference validation', () => {
   assert.doesNotThrow(() => validateStructuredSceneReferences(s, ALLOWED));
 });
 
+test('an unlicensed PROP plate is dropped from references, not fatal', () => {
+  // The same id was already being pruned from sceneryIds and then hard-failing
+  // one line later from references[] — a prop the plan licensed for an earlier
+  // section, staged again by the author of a later one.
+  const s = {
+    references: [
+      { id: 'vashti_oru', type: 'character' },
+      { id: 'the_forge', type: 'location' },
+      { id: 'iron_lantern', type: 'object' },
+    ],
+    shots: [{ sceneryIds: ['the_forge', 'iron_lantern'], acting: [{ subjectId: 'vashti_oru' }] }],
+  };
+  const dropped = pruneUnlicensedScenery(s, ALLOWED);
+  assert.deepEqual(s.references.map((r) => r.id), ['vashti_oru', 'the_forge']);
+  assert.deepEqual(s.shots[0].sceneryIds, ['the_forge']);
+  assert.match(dropped.join(' | '), /references\[2\]\.id="iron_lantern"/);
+  assert.doesNotThrow(() => validateStructuredSceneReferences(s, ALLOWED));
+});
+
+test('a prop plate something ACTS or SPEAKS as is identity — still fatal', () => {
+  for (const shot of [
+    { sceneryIds: [], acting: [{ subjectId: 'iron_lantern' }] },
+    { sceneryIds: [], acting: [], dialogue: [{ subjectId: 'iron_lantern' }] },
+  ]) {
+    const s = { references: [{ id: 'vashti_oru', type: 'character' }, { id: 'iron_lantern', type: 'object' }], shots: [shot] };
+    pruneUnlicensedScenery(s, ALLOWED);
+    assert.equal(s.references.length, 2);
+    assert.throws(() => validateStructuredSceneReferences(s, ALLOWED), /iron_lantern/);
+  }
+});
+
+test('an unlicensed CHARACTER plate is never pruned — it changes who is in the film', () => {
+  const s = {
+    references: [{ id: 'vashti_oru', type: 'character' }, { id: 'a_stranger', type: 'character' }],
+    shots: [{ sceneryIds: [], acting: [{ subjectId: 'vashti_oru' }] }],
+  };
+  pruneUnlicensedScenery(s, ALLOWED);
+  assert.equal(s.references.length, 2);
+  assert.throws(() => validateStructuredSceneReferences(s, ALLOWED), /a_stranger/);
+});
+
+test('the LAST plate is never pruned — a scene with zero references cannot render', () => {
+  const s = { references: [{ id: 'iron_lantern', type: 'object' }], shots: [{ sceneryIds: [], acting: [] }] };
+  const dropped = pruneUnlicensedScenery(s, ALLOWED);
+  assert.equal(s.references.length, 1);
+  assert.deepEqual(dropped, []);
+  assert.throws(() => validateStructuredSceneReferences(s, ALLOWED), /iron_lantern/);
+});
+
 test('identity-critical ids still hard-fail — they are not scenery', () => {
   const s = scene();
   s.references.push({ id: 'a_stranger' });
