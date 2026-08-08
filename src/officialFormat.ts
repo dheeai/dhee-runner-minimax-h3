@@ -821,15 +821,27 @@ export function validateStructuredScenePerformance(
         line['subjectId'],
         `shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId`,
       );
-      if (!expected.has(subjectId)) {
-        throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`);
-      }
-      const ref = sceneRefById.get(subjectId);
-      if (!ref) {
-        throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is not declared in references; expected IDs: ${expectedIds}`);
-      }
-      if (ref.type !== 'character') {
-        throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is not a character reference`);
+      // An OFF-SCREEN voice has no visual and therefore no plate, so the
+      // speaker legitimately is not among this scene's references. The vocal
+      // identity below is still required — that is what stops H3 picking a
+      // voice at random — but the plate checks do not apply.
+      //
+      // This is the SECOND validator that enforced the same rule (the first is
+      // validateStructuredSceneReferences in index.ts). Fixing one left the
+      // other rejecting the identical line, which is why a finished 8-scene
+      // film died twice on scene_8's off-screen "Sereth."
+      const offScreen = line['offScreen'] === true;
+      if (!offScreen) {
+        if (!expected.has(subjectId)) {
+          throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`);
+        }
+        const ref = sceneRefById.get(subjectId);
+        if (!ref) {
+          throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is not declared in references; expected IDs: ${expectedIds}`);
+        }
+        if (ref.type !== 'character') {
+          throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is not a character reference`);
+        }
       }
       dialogueSubjectIds.add(subjectId);
       if (line['voicePrompt'] !== undefined) {

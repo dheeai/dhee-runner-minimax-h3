@@ -327,3 +327,44 @@ test('an ON-screen speaker still must be a licensed reference', () => {
     /unknown shots\[0\]\.dialogue\[0\]\.subjectId="ash_sworn_captain"/,
   );
 });
+
+test('the performance validator also exempts an off-screen speaker', () => {
+  // Two validators enforced the same rule in different files; fixing one left
+  // the other rejecting the identical line and the film died twice.
+  const withOffScreen = scene({
+    spokenLines: ['Sereth.'],
+    shots: [{
+      id: 's1', startTime: 0, endTime: 8,
+      composition: 'Wide on the quarry floor.',
+      acting: [{ subjectId: 'sudha', tactic: 'hold', observableBehavior: 'stands', beatChange: 'none' }],
+      sceneryIds: ['kitchen'],
+      action: 'She stops.',
+      cameraMotion: 'Static Shot',
+      sound: 'Stone settling.',
+      dialogue: [{
+        speakerId: 'S1', subjectId: 'ash_sworn_captain', language: 'English',
+        exactWords: 'Sereth.', delivery: 'flat', offScreen: true,
+        voicePrompt: 'a dry male voice, unhurried, from somewhere above',
+      }],
+    }],
+  });
+  assert.doesNotThrow(() => validateStructuredScenePerformance(
+    withOffScreen, ['sudha', 'rina', 'kitchen'], true,
+  ));
+});
+
+test('an off-screen speaker still needs a vocal identity', () => {
+  const noVoice = scene({
+    spokenLines: ['Sereth.'],
+    shots: [{
+      id: 's1', startTime: 0, endTime: 8,
+      composition: 'Wide.', acting: [{ subjectId: 'sudha', tactic: 'hold', observableBehavior: 'stands', beatChange: 'none' }],
+      sceneryIds: ['kitchen'], action: 'She stops.', cameraMotion: 'Static Shot', sound: 'Stone.',
+      dialogue: [{ speakerId: 'S1', subjectId: 'ash_sworn_captain', language: 'English', exactWords: 'Sereth.', delivery: 'flat', offScreen: true }],
+    }],
+  });
+  assert.throws(
+    () => validateStructuredScenePerformance(noVoice, ['sudha', 'rina', 'kitchen'], true),
+    /voicePrompt/,
+  );
+});
