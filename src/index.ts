@@ -272,6 +272,33 @@ function readText(ctx: RunnerContext, key: string | undefined): string | undefin
   return undefined;
 }
 
+/**
+ * The entities of the section immediately BEFORE this one, from the shot plan.
+ *
+ * This is how the runner knows who was already in the film's world when a scene
+ * opens, and it is deliberately taken from the PLAN rather than from anything a
+ * model authored. `continuationFrom.characterPositions` carries the same
+ * information in principle, but on the first real end-to-end run scene 3 copied
+ * scene 2's `continuationFrom` instead of its `continuationAnchor`, dropping a
+ * character who had already arrived — and the runner then ordered her to arrive
+ * a second time. The plan cannot make that mistake.
+ *
+ * Returns undefined for the first section, which has no predecessor, and for a
+ * plan whose sections cannot be located — in both cases no arrival is claimed,
+ * which is the safe direction to fail.
+ */
+function previousSectionEntities(plan: unknown, itemId: string | undefined): string[] | undefined {
+  if (!itemId || !plan || typeof plan !== 'object') return undefined;
+  const sections = (plan as Record<string, unknown>)['sections'];
+  if (!Array.isArray(sections)) return undefined;
+  const index = sections.findIndex((s) => (s as Record<string, unknown> | undefined)?.['id'] === itemId);
+  if (index <= 0) return undefined;
+  const prior = sections[index - 1] as Record<string, unknown> | undefined;
+  const entities = prior?.['entities'];
+  if (!Array.isArray(entities)) return undefined;
+  return entities.map((e) => String(e ?? '').trim()).filter(Boolean);
+}
+
 function readJsonInput(ctx: RunnerContext, key: string | undefined): unknown {
   if (!key) return undefined;
   const v = ctx.inputs[key];
@@ -1354,6 +1381,7 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     ? compileStructuredScenePrompt(promptDoc, {
       strictPerformance: rb(cfg, 'strictPerformance') ?? false,
       expectedReferenceIds: expectedSceneReferenceIds(ctx, cfg, plan, itemId),
+      previousSectionEntities: previousSectionEntities(plan, itemId),
     })
     : undefined;
   const proseRaw = compiledStructured?.detailedDescription ?? rs(cfg, 'prompt') ?? resolvePromptText(ctx, cfg);

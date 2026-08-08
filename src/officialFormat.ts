@@ -259,6 +259,12 @@ export interface ContinuationFrom extends ContinuityLedger {
 export interface StructuredSceneCompileOptions {
   strictPerformance?: boolean;
   expectedReferenceIds?: readonly string[];
+  /**
+   * Entities of the section immediately before this one, from the shot plan.
+   * A character acting in this scene who is not in that list was not in the
+   * film's world when the scene opened, and must be seen to arrive.
+   */
+  previousSectionEntities?: readonly string[];
 }
 
 export interface CompiledH3Section {
@@ -657,21 +663,21 @@ function parseContinuityLedger(raw: unknown, field: string): ContinuityLedger | 
  * the thing that introduces it.
  */
 /**
- * Who was NOT in the room when this scene began, derived rather than declared.
+ * Who was NOT in the film's world when this scene opened.
  *
- * `offStage` was supposed to carry this, and on the first real end-to-end run
- * the author left it empty in every scene no matter how the prompt was worded —
- * the drift this bundle keeps hitting. But the answer is already implied by a
- * field the author DOES populate reliably: anyone acting in this scene who is
- * absent from `continuationFrom.characterPositions` was not in the room at the
- * boundary, and therefore has to be seen to come in.
+ * Taken from the PLAN — the previous section's entity list — not from anything
+ * a model authored. `offStage` was meant to carry this and the author left it
+ * empty in every scene of the first real end-to-end run, however the prompt was
+ * worded. `continuationFrom.characterPositions` carries it too, and scene 3 of
+ * that run got it wrong by copying the previous scene's `continuationFrom`
+ * instead of its `continuationAnchor`, which would have made a character who had
+ * already arrived walk in twice.
  *
- * Deriving it removes the author from the loop entirely. `offStage` stays as the
- * richer, optional signal — it can say WHERE someone waits, which this cannot —
- * but nothing depends on it being filled.
+ * The plan is authored once, upstream, and is the same artifact the film's
+ * pacing was built from. It cannot disagree with itself.
  */
-function deriveArrivals(value: StructuredScenePrompt, from: ContinuationFrom): string[] {
-  const presentAtOpen = new Set(from.characterPositions.map((c) => c.subjectId));
+function deriveArrivals(value: StructuredScenePrompt, previousEntities: readonly string[]): string[] {
+  const wasPresent = new Set(previousEntities);
   const characterIds = new Set(
     value.references.filter((ref) => ref.type === 'character').map((ref) => ref.id),
   );
@@ -681,7 +687,7 @@ function deriveArrivals(value: StructuredScenePrompt, from: ContinuationFrom): s
       if (characterIds.has(entry.subjectId)) acting.add(entry.subjectId);
     }
   }
-  return [...acting].filter((id) => !presentAtOpen.has(id));
+  return [...acting].filter((id) => !wasPresent.has(id));
 }
 
 function compileContinuationFrom(from: ContinuationFrom): string {
@@ -1356,22 +1362,23 @@ export function compileStructuredScenePrompt(
   // the placement the hand-authored probe used, and the last thing H3 reads
   // before it starts staging [Shot 1].
   let continuationOpening = value.continuationFrom ? compileContinuationFrom(value.continuationFrom) : '';
-  if (value.continuationFrom && continuationOpening) {
-    // A character who acts in this scene but was not in the room when it opened
-    // must be SEEN TO ENTER. Stated last, so it is the final instruction before
-    // [Shot 1] — and stated non-vocally, because an arrival described with a
-    // voice and no words is the speech-shaped-noise fatal.
-    const arrivals = deriveArrivals(value, value.continuationFrom);
-    if (arrivals.length) {
-      const who = arrivals.join(' and ');
-      continuationOpening += ` ${tidyPeriods(
-        `${who} ${arrivals.length > 1 ? 'are' : 'is'} not in the room as the scene opens. ` +
-          `The scene must SHOW ${arrivals.length > 1 ? 'them' : 'them'} come in — entering frame, ` +
-          `stepping through a doorway or arriving into the light — before anything else ` +
-          `${arrivals.length > 1 ? 'they do' : 'they do'} in this scene. ` +
-          `${arrivals.length > 1 ? 'They are' : 'They are'} never simply present in the first frame.`,
-      )}`;
-    }
+  // A character acting in this scene who was not in the previous section must be
+  // SEEN TO ENTER. Independent of continuationFrom, because the plan knows this
+  // and the author does not reliably. Phrased non-vocally: an arrival described
+  // with a voice and no words is the speech-shaped-noise fatal.
+  const arrivals = options.previousSectionEntities
+    ? deriveArrivals(value, options.previousSectionEntities)
+    : [];
+  if (arrivals.length) {
+    const who = arrivals.join(' and ');
+    const plural = arrivals.length > 1;
+    const directive = tidyPeriods(
+      `${who} ${plural ? 'are' : 'is'} not in the room as the scene opens. ` +
+        `The scene must SHOW ${plural ? 'them' : 'them'} come in — entering frame, stepping through a ` +
+        `doorway, or arriving into the light — before anything else happens with ${plural ? 'them' : 'them'}. ` +
+        `${plural ? 'They are' : 'They are'} never simply present in the first frame.`,
+    );
+    continuationOpening = continuationOpening ? `${continuationOpening} ${directive}` : directive;
   }
   const detailedDescription = [styleOpening, continuationOpening, performance, shotDescription, trailer]
     .filter(Boolean).join('\n\n');

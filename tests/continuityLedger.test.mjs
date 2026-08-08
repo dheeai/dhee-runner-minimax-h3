@@ -240,30 +240,33 @@ const twoHander = (extra = {}) => scene({
   ...extra,
 });
 
-test('a character absent from the inherited positions is ordered to be seen arriving', () => {
-  const text = body(twoHander({ continuationFrom: LEDGER() }));  // LEDGER has only sudha present
+const bodyWithPrior = (value, previousSectionEntities) => {
+  const { sections } = compileStructuredScenePrompt(value, {
+    expectedReferenceIds: ['sudha', 'rina', 'kitchen'], previousSectionEntities,
+  });
+  return sections.find((s) => s.name === 'detailed_description').body;
+};
+
+test('a character absent from the previous section is ordered to be seen arriving', () => {
+  const text = bodyWithPrior(twoHander({ continuationFrom: LEDGER() }), ['sudha', 'kitchen']);
   assert.match(text, /rina is not in the room as the scene opens/);
   assert.match(text, /must SHOW them come in/);
   assert.ok(text.indexOf('not in the room') < text.indexOf('[Shot 1]'), 'must land before the first shot');
 });
 
-test('no arrival is claimed for someone already in the room', () => {
-  const both = { ...LEDGER(), characterPositions: [
-    ...LEDGER().characterPositions,
-    { subjectId: 'rina', screenPosition: 'in the doorway', facing: 'toward camera', pose: 'standing' },
-  ] };
-  const text = body(twoHander({ continuationFrom: both }));
+test('no arrival is claimed for someone already in the previous section', () => {
+  // The false positive that shipped: cold_plate scene 3 had the same cast as
+  // scene 2, but a mis-copied ledger made the runner order a second entrance.
+  const text = bodyWithPrior(twoHander({ continuationFrom: LEDGER() }), ['sudha', 'rina', 'kitchen']);
   assert.ok(!text.includes('not in the room as the scene opens'), 'nobody needs to arrive here');
 });
 
-test('the derivation does not depend on offStage being filled', () => {
-  const noOffStage = { ...LEDGER() };
-  delete noOffStage.offStage;
-  const text = body(twoHander({ continuationFrom: noOffStage }));
+test('the derivation needs neither offStage nor continuationFrom', () => {
+  const text = bodyWithPrior(twoHander(), ['sudha', 'kitchen']);
   assert.match(text, /rina is not in the room as the scene opens/);
 });
 
 test('the first scene of a film gets no arrival directive', () => {
-  const text = body(twoHander());
+  const text = body(twoHander());   // no previousSectionEntities at all
   assert.ok(!text.includes('not in the room as the scene opens'));
 });
