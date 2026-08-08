@@ -33,8 +33,8 @@
  *   • 5s..15s, 24fps, on H3's 17k+5 frame grid (5, 22, 39 … 362)
  *   • native resolution is 768px on the short edge, capped 768x1344, /32
  *   • `ref_image_size`: "match" (fast) or "max" (stronger identity, slower)
- *   • `res_multistep` + a `beta`/`normal` scheduler is the reference-heavy
- *     recommendation; `simple` is what the stock template ships
+ *   • `res_multistep` + the `simple` scheduler is the founder-tested fast
+ *     workflow used by the canonical INT8 + MiniMaxH3Cache graph
  *
  * PURE TS + ffmpeg. The diffusion graph is the BUNDLE's (cfg.workflowPath,
  * API-format); runtime values are injected by placeholder (`__POS__`) and by
@@ -50,8 +50,10 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
-import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, repairH3Prose } from './officialFormat.js';
+import { injectAuthoredDialogue } from './dialogueInjection.js';
+import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
 
+export * from './dialogueInjection.js';
 export * from './officialFormat.js';
 
 const IMAGE_RE = /\.(png|jpe?g|webp)$/i;
@@ -65,7 +67,145 @@ export const H3_FPS = 24;
 /** Prompts run to ~7,000 characters; past that the tail is at risk. */
 export const H3_PROMPT_CHAR_LIMIT = 7000;
 
-type Workflow = Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
+// ── measured H3 clip-duration model ─────────────────────────────────────────
+// Duplicated verbatim in dhee-runner-story-chapters/src/chapterMerge.ts (that
+// repo's `mergeSections` applies the SAME speechSecondsFor to the UPSTREAM
+// `budgetSec` an LLM authors shot durations against) — this ecosystem
+// deliberately does not cross-import between runner packages, so keep both
+// copies of these constants and this function in sync by hand.
+//
+// Measured 2026-08-04 across 7 H3 renders (1280x720, seed 4242, Hindi): H3
+// generates audio from the prompt and stretches/compresses the spoken line to
+// fill the clip — leadInSilence + speechSpan ≈ clipLength, exactly, every
+// time. Natural pace, taken from the longest (least padding-distorted) line:
+// ~2.8 words/second. Fixed overhead ~1.0s (lead-in + tail).
+export const WORDS_PER_SEC = 2.8;
+export const FIXED_OVERHEAD_SEC = 1.0;
+export const INTER_LINE_GAP_SEC = 0.35;
+
+/**
+ * Seconds of SPOKEN dialogue a beat needs: word-paced duration plus fixed
+ * lead-in/tail overhead plus a gap between separate utterances. `lines` is
+ * whitespace-tokenized (works for Devanagari — Hindi uses spaces). Duplicated
+ * in dhee-runner-story-chapters/src/chapterMerge.ts — keep both in sync.
+ */
+export function speechSecondsFor(lines: string[]): number {
+  const words = lines.reduce((sum, line) => sum + String(line ?? '').trim().split(/\s+/).filter(Boolean).length, 0);
+  return words / WORDS_PER_SEC + FIXED_OVERHEAD_SEC + Math.max(0, lines.length - 1) * INTER_LINE_GAP_SEC;
+}
+
+export type Workflow = Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
+
+export interface H3WorkflowContractOptions {
+  positive: string;
+  referenceNames: string[];
+  width: number;
+  height: number;
+  length: number;
+  refImageSize: string;
+  steps: number;
+  samplerName: string;
+  scheduler?: string;
+  seed: number;
+  fps: number;
+  itemId: string;
+  cacheEnabled?: boolean;
+  cacheThreshold?: number;
+  cacheStart?: number;
+  cacheEnd?: number;
+  cacheMaxSteps?: number;
+}
+
+export interface H3WorkflowContractResult {
+  scheduler: string;
+  cacheLog?: string;
+}
+
+/** Apply dynamic values to a canonical MiniMaxH3Cache or legacy EasyCache graph. */
+export function applyH3WorkflowContract(
+  wf: Workflow,
+  options: H3WorkflowContractOptions,
+): H3WorkflowContractResult {
+  const {
+    positive, referenceNames, width, height, length, refImageSize, steps,
+    samplerName, seed, fps, itemId,
+  } = options;
+  const scheduler = options.scheduler ?? 'simple';
+
+  const r2vId = Object.keys(wf).find((key) => wf[key]?.class_type === 'MiniMaxH3ReferenceToVideo');
+  if (!r2vId) throw new Error('workflow has no MiniMaxH3ReferenceToVideo node');
+  const r2vInputs = wf[r2vId]!.inputs ?? (wf[r2vId]!.inputs = {});
+
+  // The final authored prompt owns this input even when an exported graph
+  // contains literal example copy instead of the __POS__ placeholder.
+  r2vInputs['prompt'] = positive;
+
+  // Comfy exports the autogrow group in both flat and dotted forms. Remove both
+  // before rebuilding it so no template reference can leak into a render.
+  for (const key of Object.keys(r2vInputs)) {
+    if (key.startsWith('ref_images.') || /^ref_image_\d+$/.test(key)) delete r2vInputs[key];
+  }
+  for (let i = 0; i < referenceNames.length; i++) {
+    const loadId = `h3Ref${i}`;
+    wf[loadId] = { class_type: 'LoadImage', inputs: { image: referenceNames[i]! } };
+    r2vInputs[`ref_images.ref_image_${i}`] = [loadId, 0];
+  }
+  r2vInputs['width'] = width;
+  r2vInputs['height'] = height;
+  r2vInputs['length'] = length;
+  r2vInputs['ref_image_size'] = refImageSize;
+
+  const cacheId = Object.keys(wf).find((key) => {
+    const classType = wf[key]?.class_type;
+    return classType === 'MiniMaxH3Cache' || classType === 'EasyCache';
+  });
+  let cacheLog: string | undefined;
+  if (cacheId) {
+    const cacheNode = wf[cacheId]!;
+    const cacheClass = cacheNode.class_type!;
+    if (options.cacheEnabled === false) {
+      const upstream = cacheNode.inputs?.['model'];
+      delete wf[cacheId];
+      for (const node of Object.values(wf)) {
+        for (const [key, value] of Object.entries(node.inputs ?? {})) {
+          if (Array.isArray(value) && value[0] === cacheId) node.inputs![key] = upstream;
+        }
+      }
+      cacheLog = `${cacheClass} removed (cache:false)`;
+    } else {
+      const inputs = cacheNode.inputs ?? (cacheNode.inputs = {});
+      const thresholdKey = cacheClass === 'MiniMaxH3Cache' ? 'resuse_threshold' : 'reuse_threshold';
+      if (options.cacheThreshold !== undefined) inputs[thresholdKey] = options.cacheThreshold;
+      if (options.cacheStart !== undefined) inputs['start_percent'] = options.cacheStart;
+      if (options.cacheEnd !== undefined) inputs['end_percent'] = options.cacheEnd;
+      if (cacheClass === 'MiniMaxH3Cache' && options.cacheMaxSteps !== undefined) inputs['max_steps'] = options.cacheMaxSteps;
+      cacheLog = `${cacheClass} on (reuse ${inputs[thresholdKey]}, ${inputs['start_percent']}-${inputs['end_percent']}` +
+        (cacheClass === 'MiniMaxH3Cache' ? `, max_steps ${inputs['max_steps']})` : ')');
+    }
+  }
+
+  for (const key of Object.keys(wf)) {
+    const classType = wf[key]?.class_type;
+    if (classType === 'ResolutionSelector' || classType === 'ComfyMathExpression' || classType === 'PrimitiveFloat') delete wf[key];
+  }
+
+  for (const node of Object.values(wf)) {
+    const inputs = node.inputs ?? (node.inputs = {});
+    for (const [key, value] of Object.entries(inputs)) {
+      if (value === '__POS__') inputs[key] = positive;
+    }
+    switch (node.class_type) {
+      case 'RandomNoise': inputs['noise_seed'] = seed; break;
+      case 'BasicScheduler': inputs['steps'] = steps; inputs['scheduler'] = scheduler; break;
+      case 'KSamplerSelect': inputs['sampler_name'] = samplerName; break;
+      case 'CreateVideo': inputs['fps'] = fps; break;
+      case 'SaveVideo': inputs['filename_prefix'] = `h3_${itemId.replace(/[^a-zA-Z0-9_]/g, '_')}`; break;
+      default: break;
+    }
+  }
+
+  return { scheduler, cacheLog };
+}
 
 // ── small shared helpers (kept local — the SDK firewall forbids core imports) ──
 function rs(o: Record<string, unknown>, k: string): string | undefined {
@@ -335,6 +475,94 @@ export function composePrompt(bindingClause: string, prose: string, limit = H3_P
   return { prompt: `${head}${prose.slice(0, room)}`, trimmed: full.length - limit };
 }
 
+/**
+ * Reject structured prompt references that cannot belong to this scene.
+ *
+ * The authoring schema can validate shape but cannot see the per-scene entity
+ * list supplied by `scenes_plan`. Keep this check pure so it can run before any
+ * reference image is loaded or any ComfyUI request is queued. `expectedIds` is
+ * the authoritative scene-level inventory, not the whole story-bible map.
+ */
+export function validateStructuredSceneReferences(scene: unknown, expectedIds: readonly string[]): void {
+  if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return;
+  const root = scene as Record<string, unknown>;
+  const expectedDisplay = [...new Set(expectedIds.map((id) => String(id).trim()).filter(Boolean))];
+  const expected = new Set(expectedDisplay.map((id) => id.toLowerCase()));
+  const unknown: string[] = [];
+  const add = (path: string, value: unknown) => {
+    if (typeof value !== 'string' || !value.trim()) return;
+    const id = value.trim();
+    if (!expected.has(id.toLowerCase())) unknown.push(`${path}="${id}"`);
+  };
+
+  const references = root['references'];
+  if (Array.isArray(references)) {
+    references.forEach((reference, index) => {
+      if (reference && typeof reference === 'object' && !Array.isArray(reference)) {
+        add(`references[${index}].id`, (reference as Record<string, unknown>)['id']);
+      }
+    });
+  }
+
+  const shots = root['shots'];
+  if (Array.isArray(shots)) {
+    shots.forEach((shot, shotIndex) => {
+      if (!shot || typeof shot !== 'object' || Array.isArray(shot)) return;
+      const shotRecord = shot as Record<string, unknown>;
+      // A shot's visible references live in `subjectIds` (legacy) or, since the
+      // acting/scenery split, in `acting[].subjectId` + `sceneryIds[]`. Walk all
+      // three so an invented id is caught here whichever shape produced it.
+      const subjectIds = shotRecord['subjectIds'];
+      if (Array.isArray(subjectIds)) {
+        subjectIds.forEach((subjectId, subjectIndex) => {
+          add(`shots[${shotIndex}].subjectIds[${subjectIndex}]`, subjectId);
+        });
+      }
+      const sceneryIds = shotRecord['sceneryIds'];
+      if (Array.isArray(sceneryIds)) {
+        sceneryIds.forEach((sceneryId, sceneryIndex) => {
+          add(`shots[${shotIndex}].sceneryIds[${sceneryIndex}]`, sceneryId);
+        });
+      }
+      const acting = shotRecord['acting'];
+      if (Array.isArray(acting)) {
+        acting.forEach((entry, actingIndex) => {
+          if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+            add(`shots[${shotIndex}].acting[${actingIndex}].subjectId`, (entry as Record<string, unknown>)['subjectId']);
+          }
+        });
+      }
+      const dialogue = shotRecord['dialogue'];
+      if (Array.isArray(dialogue)) {
+        dialogue.forEach((line, lineIndex) => {
+          if (line && typeof line === 'object' && !Array.isArray(line)) {
+            add(`shots[${shotIndex}].dialogue[${lineIndex}].subjectId`, (line as Record<string, unknown>)['subjectId']);
+          }
+        });
+      }
+    });
+  }
+
+  if (unknown.length) {
+    throw new Error(
+      `structured scene reference validation failed: unknown ${unknown.join(', ')}; ` +
+      `expected IDs: ${expectedDisplay.length ? expectedDisplay.join(', ') : '(none)'}`,
+    );
+  }
+}
+
+/** Decide whether a prompt document should enter the structured compiler path. */
+export function shouldCompileStructuredPrompt(promptDoc: unknown, structuredMode?: string): boolean {
+  if (!promptDoc || typeof promptDoc !== 'object' || Array.isArray(promptDoc)) return false;
+  const doc = promptDoc as Record<string, unknown>;
+  const autoStructured = Array.isArray(doc['references']) && Array.isArray(doc['shots']) && doc['shotStructure'] !== undefined;
+  if (autoStructured) return true;
+  const modeRequestsStructured = structuredMode === 'structured' || structuredMode === 'schema';
+  // Current bundles enable the mode flag, but historical documents may still
+  // carry a legacy detailedDescription. Keep those documents readable.
+  return modeRequestsStructured && !(typeof doc['detailedDescription'] === 'string' && doc['detailedDescription'].trim());
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // Reference routing
 // ══════════════════════════════════════════════════════════════════════════
@@ -479,8 +707,9 @@ async function expandSheetRefs(
   return { refs: out, notes };
 }
 
-interface ShotRow { id?: string; scene?: number; duration?: number; speaker?: string | null }
-interface ShotPlan { shots?: ShotRow[]; sections?: Array<{ id?: string }> }
+interface ShotRow { id?: string; scene?: number; duration?: number; speaker?: string | null; dialogue?: string | null }
+interface ShotPlanSection { id?: string; entities?: unknown; references?: unknown }
+interface ShotPlan { shots?: ShotRow[]; sections?: ShotPlanSection[]; entities?: unknown; references?: unknown }
 
 function readShotPlan(ctx: RunnerContext, cfg: Record<string, unknown>): ShotPlan | undefined {
   const plan = readJsonInput(ctx, rs(cfg, 'shotPlanInput'));
@@ -506,6 +735,64 @@ export function shotsForItem(plan: ShotPlan | undefined, itemId: string): ShotRo
 }
 
 /**
+ * Derive the authoritative reference inventory for one scene before resolving
+ * image files. `scenes_plan.sections[].entities` is preferred because it is
+ * per-scene; the reference-input collection keys are a fallback for bundles
+ * that do not pass the complete plan into the render node.
+ */
+function expectedSceneReferenceIds(
+  ctx: RunnerContext,
+  cfg: Record<string, unknown>,
+  plan: ShotPlan | undefined,
+  itemId: string,
+): string[] | undefined {
+  const section = plan?.sections?.find((candidate) => candidate?.id === itemId);
+  const sectionValues = section && (Array.isArray(section.entities) ? section.entities : section.references);
+  if (Array.isArray(sectionValues)) {
+    const ids = sectionValues.flatMap((value) => {
+      if (typeof value === 'string') return [value];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const id = (value as Record<string, unknown>)['id'];
+        return typeof id === 'string' ? [id] : [];
+      }
+      return [];
+    }).map((id) => id.trim()).filter(Boolean);
+    return [...new Set(ids)];
+  }
+
+  const rootValues = plan && (Array.isArray(plan.entities) ? plan.entities : plan.references);
+  if (Array.isArray(rootValues)) {
+    const ids = rootValues.flatMap((value) => {
+      if (typeof value === 'string') return [value];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const id = (value as Record<string, unknown>)['id'];
+        return typeof id === 'string' ? [id] : [];
+      }
+      return [];
+    }).map((id) => id.trim()).filter(Boolean);
+    if (ids.length) return [...new Set(ids)];
+  }
+
+  const refInputs = cfg['referenceInputs'];
+  if (!refInputs || typeof refInputs !== 'object' || Array.isArray(refInputs)) return undefined;
+  const ids = new Set<string>();
+  for (const rawInput of Object.values(refInputs as Record<string, unknown>)) {
+    const inputIds = Array.isArray(rawInput) ? rawInput : [rawInput];
+    for (const rawId of inputIds) {
+      if (typeof rawId !== 'string' || !rawId.trim()) continue;
+      const value = ctx.inputs[rawId];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        for (const id of Object.keys(value as Record<string, unknown>)) ids.add(id);
+      } else if (typeof value === 'string' && value.trim()) {
+        // Stage outputs are keyed by their input id, as collectionMap() does.
+        ids.add(rawId);
+      }
+    }
+  }
+  return ids.size ? [...ids] : undefined;
+}
+
+/**
  * How many seconds this clip runs, in precedence order:
  *   1. the authored prompt document's own `duration` (the scene prompt owns its
  *      pacing — it wrote the timecoded shot list, so it knows how long it is),
@@ -514,7 +801,22 @@ export function shotsForItem(plan: ShotPlan | undefined, itemId: string): ShotRo
  *      the planner budgeted for the beat — H3 now renders it as one multi-cut
  *      clip instead of N concatenated ones),
  *   3. `cfg.seconds`, else `cfg.length / fps`.
- * Always clamped to H3's 5..15s window.
+ *
+ * BEFORE the final clamp, a deterministic dialogue FLOOR is applied: H3
+ * generates audio from the prompt and stretches/compresses the spoken line to
+ * fill exactly the clip (measured 2026-08-04 across 7 H3 renders — see
+ * `speechSecondsFor` above), so an authored/plan/fallback duration shorter
+ * than what the dialogue actually needs would either pad dead air or truncate
+ * the line. `planShots[].dialogue` (the same field `auditDialogueIntegrity`
+ * reads) is measured via `speechSecondsFor`, and `raw` is raised to that floor
+ * when the floor is larger — never shrunk, only raised. `source` gets a
+ * `+speechFloor(Ns)` suffix when the floor is what won, so run.log shows why a
+ * clip got longer. Always clamped to the caller's `minSeconds..maxSeconds`
+ * window; when the dialogue floor itself exceeds `maxSeconds`, that section
+ * cannot hold its dialogue as one H3 clip — `speechFloorSec` is still
+ * returned so the caller can log a loud warning (the render proceeds at the
+ * clamp regardless; a fatal here would kill a whole run for something only an
+ * upstream re-plan can fix).
  */
 export function resolveSeconds(
   authored: number | undefined,
@@ -522,7 +824,7 @@ export function resolveSeconds(
   fallbackSeconds: number,
   minSeconds: number,
   maxSeconds: number,
-): { seconds: number; source: string; clamped: boolean } {
+): { seconds: number; source: string; clamped: boolean; speechFloorSec?: number } {
   let raw: number | undefined = undefined;
   let source = 'fallback';
   if (typeof authored === 'number' && Number.isFinite(authored) && authored > 0) { raw = authored; source = 'prompt'; }
@@ -531,8 +833,21 @@ export function resolveSeconds(
     if (sum > 0) { raw = sum; source = planShots.length > 1 ? `plan(sum of ${planShots.length} shots)` : 'plan'; }
   }
   if (raw === undefined) raw = fallbackSeconds;
+
+  const dialogueLines = planShots
+    .map((s) => (typeof s?.dialogue === 'string' ? s.dialogue.trim() : ''))
+    .filter((l) => l.length > 0);
+  let speechFloorSec: number | undefined;
+  if (dialogueLines.length) {
+    speechFloorSec = speechSecondsFor(dialogueLines);
+    if (speechFloorSec > raw) {
+      raw = speechFloorSec;
+      source = `${source}+speechFloor(${speechFloorSec.toFixed(2)}s)`;
+    }
+  }
+
   const seconds = Math.min(maxSeconds, Math.max(minSeconds, raw));
-  return { seconds, source, clamped: Math.abs(seconds - raw) > 1e-6 };
+  return { seconds, source, clamped: Math.abs(seconds - raw) > 1e-6, speechFloorSec };
 }
 
 /**
@@ -764,7 +1079,7 @@ async function padClip(path: string, padStart: number, padEnd: number, signal?: 
 // ══════════════════════════════════════════════════════════════════════════
 const H3_MANIFEST: RunnerManifest = {
   tool: 'comfy.minimax_h3_r2v',
-  version: '0.2.0',
+  version: '0.3.2',
   engineCompat: '>=0.1.0',
   credentials: [],
   displayName: 'MiniMax H3 Reference-to-Video (multi-cut AV clip)',
@@ -793,6 +1108,11 @@ const H3_DESC: RunnerDescription = {
 
       promptInput: { type: 'string', description: 'Input id of the authored prompt document (JSON) or text. JSON is read via promptField.' },
       promptField: { type: 'string', description: "Prose field on a JSON promptInput (default: tries videoPrompt, prompt, imagePrompt, text)." },
+      structuredMode: { type: 'string', enum: ['legacy', 'structured', 'schema'], description: "Compile a structured scene JSON object into the canonical six-section H3 prompt before render. The runner also auto-detects a document containing references, shots and shotStructure." },
+      strictPerformance: { type: 'boolean', description: 'Require the ACTING performance root and one matching observable adaptation for every character-visible shot before any reference resolution or ComfyUI request.' },
+      spokenLinesField: { type: 'string', description: "Optional array field on the authored prompt document containing exactly one verbatim spoken line. When configured and detailedDescription contains no <d> block, the runner deterministically inserts `<Subject 1> (S1) says: <d>[Language] exact words</d>` before auditing and rendering." },
+      dialogueLanguageInput: { type: 'string', description: 'Project input id holding the language label used by spokenLinesField injection (for example `language`).' },
+      dialogueLanguage: { type: 'string', description: 'Literal fallback language label for spokenLinesField injection when dialogueLanguageInput is unset or empty.' },
       prompt: { type: 'string', description: 'Literal prose, overriding promptInput. Mostly for probes.' },
       durationField: { type: 'string', description: "Numeric seconds field on the prompt document (default 'duration'). Highest-precedence duration source — the scene prompt wrote the timecoded shot list, so it owns its own length." },
       bindingClause: { type: 'boolean', description: "Prepend the deterministic '<Picture N> — <appearsAs>. Use it for <job>' clause (default true). H3's single highest-leverage instruction; turn it off only when the prose already carries its own slot assignments." },
@@ -822,13 +1142,19 @@ const H3_DESC: RunnerDescription = {
       refImageSize: { type: 'string', enum: ['match', 'max'], description: "'match' scales references to the generation resolution (faster); 'max' preserves up to 2048px short edge (stronger identity, slower). Default 'match'." },
       steps: { type: 'integer', description: 'Sampler steps, default 20 (stock template).' },
       samplerName: { type: 'string', description: "Default 'res_multistep'." },
-      scheduler: { type: 'string', description: "Default 'beta' — Comfy's own recommendation over 'simple' for reference-heavy prompts." },
+      scheduler: { type: 'string', description: "Default 'simple' — the founder-tested scheduler for the canonical INT8 + MiniMaxH3Cache graph." },
       seed: { type: 'integer', description: 'Base seed; the per-item seed is derived from it + the item id so a rerun is stable but scenes differ.' },
 
-      easyCache: { type: 'boolean', description: "Keep the graph's EasyCache node (default true when the graph has one). false removes it and rewires consumers back to the raw model, so the pass can be A/B'd for its quality cost without editing the workflow. EasyCache skips low-change transformer evaluations, which is the only lever that reduces the number of steps actually computed -- and the one most likely to erode fine identity detail." },
-      easyCacheThreshold: { type: 'number', description: "EasyCache reuse_threshold. Higher skips more steps and degrades more. The shipped graph uses 0.3." },
-      easyCacheStart: { type: 'number', description: 'EasyCache start_percent (default in the graph: 0.2). Caching before this fraction of sampling is skipped, since the early high-noise steps set composition.' },
-      easyCacheEnd: { type: 'number', description: 'EasyCache end_percent (default in the graph: 0.9).' },
+      cache: { type: 'boolean', description: 'Keep a MiniMaxH3Cache or legacy EasyCache node when present (default true). false removes it and rewires downstream model consumers to its upstream model.' },
+      cacheThreshold: { type: 'number', description: 'Cache threshold override. Writes MiniMaxH3Cache.resuse_threshold (intentional node spelling) or legacy EasyCache.reuse_threshold.' },
+      cacheStart: { type: 'number', description: 'Cache start_percent override.' },
+      cacheEnd: { type: 'number', description: 'Cache end_percent override.' },
+      cacheMaxSteps: { type: 'integer', description: 'MiniMaxH3Cache max_steps override.' },
+      easyCache: { type: 'boolean', description: 'Legacy alias for cache.' },
+      easyCacheThreshold: { type: 'number', description: 'Legacy alias for cacheThreshold.' },
+      easyCacheStart: { type: 'number', description: 'Legacy alias for cacheStart.' },
+      easyCacheEnd: { type: 'number', description: 'Legacy alias for cacheEnd.' },
+      easyCacheMaxSteps: { type: 'integer', description: 'Legacy alias for cacheMaxSteps.' },
 
       padStart: { type: 'number', description: 'Seconds of held frame + silence prepended (default 0).' },
       padEnd: { type: 'number', description: 'Seconds of held frame + silence appended (default 0).' },
@@ -858,16 +1184,33 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const plan = readShotPlan(ctx, cfg);
   const planShots = shotsForItem(plan, itemId);
   const promptDoc = readJsonInput(ctx, rs(cfg, 'promptInput')) as Record<string, unknown> | undefined;
+  const structuredMode = rs(cfg, 'structuredMode');
+  const useStructuredPrompt = shouldCompileStructuredPrompt(promptDoc, structuredMode);
+  if (promptDoc && useStructuredPrompt) {
+    const expectedIds = expectedSceneReferenceIds(ctx, cfg, plan, itemId);
+    if (expectedIds) validateStructuredSceneReferences(promptDoc, expectedIds);
+    validateStructuredScenePerformance(promptDoc, expectedIds ?? [], rb(cfg, 'strictPerformance') ?? false);
+  }
   const authored = promptDoc ? rn(promptDoc, rs(cfg, 'durationField') ?? 'duration') : undefined;
   const fps = rn(cfg, 'fps') ?? H3_FPS;
-  const { seconds, source, clamped } = resolveSeconds(
+  const maxSeconds = rn(cfg, 'maxSeconds') ?? H3_MAX_SECONDS;
+  const { seconds, source, clamped, speechFloorSec } = resolveSeconds(
     authored, planShots,
     rn(cfg, 'seconds') ?? 10,
     rn(cfg, 'minSeconds') ?? H3_MIN_SECONDS,
-    rn(cfg, 'maxSeconds') ?? H3_MAX_SECONDS,
+    maxSeconds,
   );
   const LEN = snapH3Frames(seconds * fps);
   if (clamped) ctx.log(tag(`${itemId}: duration clamped to ${seconds}s (H3 renders 5–15s per call; the planner asked for more or less)`));
+  if (speechFloorSec !== undefined && speechFloorSec > maxSeconds) {
+    ctx.log(
+      tag(
+        `${itemId}: WARNING — dialogue needs ${speechFloorSec.toFixed(2)}s but the configured ceiling is ${maxSeconds}s — ` +
+          'clamped to the ceiling and the render will proceed there, but this beat cannot hold its dialogue as one H3 ' +
+          'clip; it needs an upstream re-plan (split the dialogue or the section), not a bigger clip.',
+      ),
+    );
+  }
 
   // ── references ──
   // Pinned operator plates go FIRST: routeRefs keeps only the first background and
@@ -910,7 +1253,13 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   }
 
   // ── prompt ──
-  const proseRaw = rs(cfg, 'prompt') ?? resolvePromptText(ctx, cfg);
+  const compiledStructured = useStructuredPrompt && promptDoc
+    ? compileStructuredScenePrompt(promptDoc, {
+      strictPerformance: rb(cfg, 'strictPerformance') ?? false,
+      expectedReferenceIds: expectedSceneReferenceIds(ctx, cfg, plan, itemId),
+    })
+    : undefined;
+  const proseRaw = compiledStructured?.detailedDescription ?? rs(cfg, 'prompt') ?? resolvePromptText(ctx, cfg);
   if (!proseRaw) return { ok: false, error: tag('no prompt resolved') };
   const prose = normalizePromptLayout(proseRaw);
   const wantClause = rb(cfg, 'bindingClause') ?? true;
@@ -924,13 +1273,30 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   // Otherwise fall back to legacy single-prose + <Picture N> clause so existing
   // bundles keep working unchanged.
   const doc = promptDoc ?? {};
-  const detailed = rs(doc, 'detailedDescription');
+  const detailed = compiledStructured?.detailedDescription ?? rs(doc, 'detailedDescription');
   let positive: string;
   let trimmed = 0;
   if (wantClause && detailed) {
     const { subjectDefinitions, retentionAnalysis } = buildSubjectSections(refs);
     const authoredOrder = refs.map((r) => (typeof r.authoredIndex === 'number' ? r.authoredIndex : 0));
-    const remap = remapSubjectLabels(detailed, authoredOrder);
+    let renderDetailed = detailed;
+    const spokenLinesField = rs(cfg, 'spokenLinesField');
+    if (spokenLinesField) {
+      const languageInput = rs(cfg, 'dialogueLanguageInput');
+      const languageValue = languageInput ? ctx.inputs[languageInput] : undefined;
+      const injected = injectAuthoredDialogue({
+        prose: renderDetailed,
+        spokenLines: doc[spokenLinesField],
+        language: typeof languageValue === 'string' && languageValue.trim()
+          ? languageValue
+          : rs(cfg, 'dialogueLanguage'),
+      });
+      renderDetailed = injected.prose;
+      if (injected.injected) {
+        ctx.log(tag(`${itemId} format repair: injected authored '${spokenLinesField}' as canonical H3 dialogue`));
+      }
+    }
+    const remap = remapSubjectLabels(renderDetailed, authoredOrder);
     if (remap.remapped) ctx.log(tag(`${itemId}: remapped <Subject N> labels — routing reordered the plates`));
 
     // ── mechanical format repairs, before the audit ──
@@ -960,15 +1326,18 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     // defect deliberately.
     const integrity = auditDialogueIntegrity(repaired.prose, planShots as Array<{ dialogue?: unknown }>);
     for (const w of integrity.warnings) ctx.log(tag(`${itemId} DIALOGUE WARNING: ${w}`));
-    if (integrity.fatal.length) {
-      const msg = `${itemId}: ${integrity.fatal.join('; ')}`;
+    const scriptFindings = auditDialogueScript(repaired.prose);
+    const fatal = [...integrity.fatal, ...scriptFindings];
+    if (fatal.length) {
+      const msg = `${itemId}: ${fatal.join('; ')}`;
       if (rb(cfg, 'allowGarbledAudio') === true) {
-        ctx.log(tag(`${itemId} DIALOGUE FATAL (overridden by allowGarbledAudio): ${integrity.fatal.join('; ')}`));
+        ctx.log(tag(`${itemId} DIALOGUE FATAL (overridden by allowGarbledAudio): ${fatal.join('; ')}`));
       } else {
         throw new Error(
           `comfy.minimax_h3_r2v: ${msg}. Either supply the line in a <d>[Language] ...</d> tag with an (Sx) ` +
-            'speaker id, or rewrite the description as physical action (breath, movement, stillness) so nothing ' +
-            'claims to speak. Set allowGarbledAudio:true to render anyway.',
+            'speaker id, written in that language\'s own native script (not romanized Latin), or rewrite the ' +
+            'description as physical action (breath, movement, stillness) so nothing claims to speak. Set ' +
+            'allowGarbledAudio:true to render anyway.',
         );
       }
     }
@@ -990,7 +1359,7 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const refImageSize = rs(cfg, 'refImageSize') ?? 'match';
   const steps = Math.max(1, Math.round(rn(cfg, 'steps') ?? 20));
   const samplerName = rs(cfg, 'samplerName') ?? 'res_multistep';
-  const scheduler = rs(cfg, 'scheduler') ?? 'beta';
+  const scheduler = rs(cfg, 'scheduler') ?? 'simple';
   const baseSeed = Math.round(rn(cfg, 'seed') ?? 42);
   const usedSeed = (baseSeed + hashStr(itemId)) % 2_000_000_000;
 
@@ -1017,86 +1386,29 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     if (typeof v !== 'object' || v === null || Array.isArray(v)) delete wf[k];
   }
 
-  // Locate the H3 node by class_type — the bundle is free to name it anything.
-  const r2vId = Object.keys(wf).find((k) => wf[k]?.class_type === 'MiniMaxH3ReferenceToVideo');
-  if (!r2vId) return { ok: false, error: tag(`workflow ${basename(workflowPath)} has no MiniMaxH3ReferenceToVideo node`) };
-  const r2v = wf[r2vId]!;
-  r2v.inputs = r2v.inputs ?? {};
-
-  // Rebuild the dynamic reference-image group. Comfy's API format expresses the
-  // node's dynamic input group as dotted keys `ref_images.ref_image_<N>`, each
-  // pointing at a LoadImage. Drop whatever the template shipped and wire exactly
-  // as many as this item resolved.
-  // Strip BOTH serialisations of the autogrow group before rebuilding it. The
-  // dotted 'ref_images.ref_image_<N>' form is what our graphs use and what is
-  // proven to render; the FLAT 'ref_image_<N>' form appears in graphs exported
-  // from the Comfy UI. Deleting only the dotted form left a flat key behind
-  // pointing at the template's placeholder LoadImage, so a stale example image
-  // was silently sent as an extra reference alongside the real plates.
-  for (const k of Object.keys(r2v.inputs)) {
-    if (k.startsWith('ref_images.') || /^ref_image_\d+$/.test(k)) delete r2v.inputs[k];
+  if (!Object.values(wf).some((node) => node.class_type === 'MiniMaxH3ReferenceToVideo')) {
+    return { ok: false, error: tag(`workflow ${basename(workflowPath)} has no MiniMaxH3ReferenceToVideo node`) };
   }
-  for (let i = 0; i < names.length; i++) {
-    const loadId = `h3Ref${i}`;
-    wf[loadId] = { class_type: 'LoadImage', inputs: { image: names[i]! } };
-    r2v.inputs[`ref_images.ref_image_${i}`] = [loadId, 0];
-  }
-  r2v.inputs['width'] = W;
-  r2v.inputs['height'] = He;
-  r2v.inputs['length'] = LEN;
-  r2v.inputs['ref_image_size'] = refImageSize;
-
-  // ── EasyCache ──
-  // It skips transformer evaluations whose inter-timestep change is under
-  // reuse_threshold, so it removes WORK rather than making work faster — the only
-  // lever that touches H3's dominant cost (step count). It is also the one that
-  // can erode fine identity detail, which is the axis H3 is chosen for, so it must
-  // be switchable without editing the graph: easyCache:false removes the node and
-  // rewires every consumer back to the raw model.
-  const cacheId = Object.keys(wf).find((k) => wf[k]?.class_type === 'EasyCache');
-  if (cacheId) {
-    const wantCache = rb(cfg, 'easyCache') ?? true;
-    if (!wantCache) {
-      const upstream = wf[cacheId]!.inputs?.['model'];
-      delete wf[cacheId];
-      for (const node of Object.values(wf)) {
-        for (const [k, v] of Object.entries(node.inputs ?? {})) {
-          if (Array.isArray(v) && v[0] === cacheId) node.inputs![k] = upstream as unknown as never;
-        }
-      }
-      ctx.log(tag(`${itemId}: EasyCache removed (easyCache:false)`));
-    } else {
-      const ci = wf[cacheId]!.inputs ?? (wf[cacheId]!.inputs = {});
-      const th = rn(cfg, 'easyCacheThreshold'); if (th !== undefined) ci['reuse_threshold'] = th;
-      const st = rn(cfg, 'easyCacheStart'); if (st !== undefined) ci['start_percent'] = st;
-      const en = rn(cfg, 'easyCacheEnd'); if (en !== undefined) ci['end_percent'] = en;
-      ctx.log(tag(`${itemId}: EasyCache on (reuse ${ci['reuse_threshold']}, ${ci['start_percent']}-${ci['end_percent']})`));
-    }
-  }
-
-  // Orphan the template's resolution/length helper nodes if it shipped any —
-  // they are now unreferenced, and Comfy errors on nodes whose outputs go
-  // nowhere only if they are required, so simply drop the well-known ones.
-  for (const k of Object.keys(wf)) {
-    const ct = wf[k]?.class_type;
-    if (ct === 'ResolutionSelector' || ct === 'ComfyMathExpression' || ct === 'PrimitiveFloat') delete wf[k];
-  }
-
-  // Scalars + prompt by placeholder and by class_type.
-  for (const node of Object.values(wf)) {
-    const ins = node.inputs ?? (node.inputs = {});
-    for (const [k, v] of Object.entries(ins)) {
-      if (v === '__POS__') ins[k] = positive;
-    }
-    switch (node.class_type) {
-      case 'RandomNoise': ins['noise_seed'] = usedSeed; break;
-      case 'BasicScheduler': ins['steps'] = steps; ins['scheduler'] = scheduler; break;
-      case 'KSamplerSelect': ins['sampler_name'] = samplerName; break;
-      case 'CreateVideo': ins['fps'] = fps; break;
-      case 'SaveVideo': ins['filename_prefix'] = `h3_${itemId.replace(/[^a-zA-Z0-9_]/g, '_')}`; break;
-      default: break;
-    }
-  }
+  const contract = applyH3WorkflowContract(wf, {
+    positive,
+    referenceNames: names,
+    width: W,
+    height: He,
+    length: LEN,
+    refImageSize,
+    steps,
+    samplerName,
+    scheduler,
+    seed: usedSeed,
+    fps,
+    itemId,
+    cacheEnabled: rb(cfg, 'cache') ?? rb(cfg, 'easyCache'),
+    cacheThreshold: rn(cfg, 'cacheThreshold') ?? rn(cfg, 'easyCacheThreshold'),
+    cacheStart: rn(cfg, 'cacheStart') ?? rn(cfg, 'easyCacheStart'),
+    cacheEnd: rn(cfg, 'cacheEnd') ?? rn(cfg, 'easyCacheEnd'),
+    cacheMaxSteps: rn(cfg, 'cacheMaxSteps') ?? rn(cfg, 'easyCacheMaxSteps'),
+  });
+  if (contract.cacheLog) ctx.log(tag(`${itemId}: ${contract.cacheLog}`));
   const leftover = Object.values(wf).flatMap((n) => Object.values(n.inputs ?? {}).filter((v): v is string => typeof v === 'string' && /^__[A-Z0-9_]+__$/.test(v)));
   if (leftover.length) return { ok: false, error: tag(`unfilled placeholders: ${[...new Set(leftover)].join(', ')}`) };
 

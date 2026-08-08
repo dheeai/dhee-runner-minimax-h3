@@ -3,6 +3,7 @@
  * Run: npm test
  */
 import assert from 'node:assert/strict';
+import * as h3Module from '../dist/index.js';
 import {
   snapH3Frames, routeRefs, buildBindingClause, composePrompt, resolveSeconds, shotsForItem,
   planSheetExpansion, resolveGeometry, normalizePromptLayout,
@@ -147,6 +148,41 @@ t('falls back to cfg.seconds when neither prompt nor plan says anything', () => 
   assert.equal(r.source, 'fallback');
 });
 
+console.log('resolveSeconds — measured dialogue FLOOR (H3 stretches/compresses audio to fill the clip exactly)');
+const DIALOGUE_12_WORDS = 'ek do teen char paanch che saat aath nau das gyarah barah';
+t('the speech floor RAISES a too-short authored duration', () => {
+  const withDialogue = { shots: [{ id: 'scene_5_shot_1', scene: 5, dialogue: DIALOGUE_12_WORDS }] };
+  const r = resolveSeconds(4, shotsForItem(withDialogue, 'scene_5'), 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
+  // speechSecondsFor(12 words) = 12/2.8 + 1.0 ≈ 5.29s, bigger than the authored 4s.
+  assert.ok(Math.abs(r.speechFloorSec - 5.2857142857142865) < 1e-9);
+  assert.ok(Math.abs(r.seconds - 5.2857142857142865) < 1e-9);
+  assert.match(r.source, /^prompt\+speechFloor\(5\.29s\)$/);
+});
+t('a longer authored duration is NOT shrunk by a smaller speech floor', () => {
+  const withDialogue = { shots: [{ id: 'scene_5_shot_1', scene: 5, dialogue: DIALOGUE_12_WORDS }] };
+  const r = resolveSeconds(12, shotsForItem(withDialogue, 'scene_5'), 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
+  assert.equal(r.seconds, 12);
+  assert.equal(r.source, 'prompt'); // floor did not win — no +speechFloor suffix
+  assert.ok(r.speechFloorSec < 12);
+});
+t('no dialogue on any plan shot leaves behaviour completely unchanged', () => {
+  const noDialogue = { shots: [{ id: 'scene_6_shot_1', scene: 6, duration: 6 }] };
+  const r = resolveSeconds(undefined, shotsForItem(noDialogue, 'scene_6'), 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
+  assert.equal(r.seconds, 6);
+  assert.equal(r.source, 'plan');
+  assert.equal(r.speechFloorSec, undefined);
+});
+t('a dialogue floor past the ceiling clamps to maxSeconds and is reported via speechFloorSec for the caller to warn on', () => {
+  const fiftyWords = Array.from({ length: 50 }, (_, i) => `w${i}`).join(' ');
+  const overflow = { shots: [{ id: 'scene_7_shot_1', scene: 7, dialogue: fiftyWords }] };
+  const r = resolveSeconds(undefined, shotsForItem(overflow, 'scene_7'), 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
+  // speechSecondsFor(50 words) = 50/2.8 + 1.0 ≈ 18.86s — past the 15s ceiling.
+  assert.equal(r.seconds, H3_MAX_SECONDS);
+  assert.equal(r.clamped, true);
+  assert.ok(r.speechFloorSec > H3_MAX_SECONDS);
+  assert.match(r.source, /speechFloor\(18\.86s\)/);
+});
+
 console.log('planSheetExpansion — contact sheets become separate single-view plates, within 9 slots');
 t('the ordinary case: 1 character + object + location → 2 views, 4 slots', () => {
   const r = planSheetExpansion(1, 2, 2, 9);
@@ -244,6 +280,96 @@ t('collapses runs of 3+ newlines to a single blank line', () => {
 t('does not split a timecode that already starts a line', () => {
   const out = normalizePromptLayout('[0s-3s] One.\n\n[3s-6s] Two.');
   assert.equal((out.match(/^\s*\[/gm) || []).length, 2);
+});
+
+console.log('applyH3WorkflowContract — founder-tested MiniMaxH3Cache graph');
+const applyH3WorkflowContract = h3Module.applyH3WorkflowContract ?? (() => undefined);
+const canonicalGraph = () => ({
+  unet: { class_type: 'UNETLoader', inputs: { unet_name: 'h3-int8.safetensors' } },
+  patch: { class_type: 'PathchSageAttentionKJ', inputs: { sage_attention: 'auto', model: ['unet', 0] } },
+  cache: {
+    class_type: 'MiniMaxH3Cache',
+    inputs: { resuse_threshold: 0.03, start_percent: 0.15, end_percent: 0.9, max_steps: 1, model: ['patch', 0] },
+  },
+  preview: { class_type: 'ModelPreviewOverrideKJ', inputs: { model: ['cache', 0] } },
+  h3: {
+    class_type: 'MiniMaxH3ReferenceToVideo',
+    inputs: {
+      prompt: 'literal template copy that must never reach H3',
+      ref_image_0: ['oldFlat', 0],
+      'ref_images.ref_image_1': ['oldDotted', 0],
+    },
+  },
+  scheduler: { class_type: 'BasicScheduler', inputs: { scheduler: 'beta', steps: 99, model: ['patch', 0] } },
+  sampler: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+  noise: { class_type: 'RandomNoise', inputs: { noise_seed: 1 } },
+  output: { class_type: 'CreateVideo', inputs: { fps: 30 } },
+});
+const workflowOptions = (overrides = {}) => ({
+  positive: 'the final dynamically authored prompt',
+  referenceNames: ['uploaded-a.png', 'uploaded-b.png'],
+  width: 864,
+  height: 480,
+  length: 124,
+  refImageSize: 'match',
+  steps: 20,
+  samplerName: 'res_multistep',
+  seed: 4242,
+  fps: 24,
+  itemId: 'hero',
+  ...overrides,
+});
+
+t('direct H3 prompt injection replaces literal template copy', () => {
+  const wf = canonicalGraph();
+  applyH3WorkflowContract(wf, workflowOptions());
+  assert.equal(wf.h3.inputs.prompt, 'the final dynamically authored prompt');
+});
+t('simple scheduler is the default for the canonical graph', () => {
+  const wf = canonicalGraph();
+  applyH3WorkflowContract(wf, workflowOptions());
+  assert.equal(wf.scheduler.inputs.scheduler, 'simple');
+  assert.equal(wf.scheduler.inputs.steps, 20);
+});
+t('MiniMaxH3Cache applies every supported override using its intentional resuse_threshold spelling', () => {
+  const wf = canonicalGraph();
+  applyH3WorkflowContract(wf, workflowOptions({
+    cacheThreshold: 0.07,
+    cacheStart: 0.2,
+    cacheEnd: 0.8,
+    cacheMaxSteps: 3,
+  }));
+  assert.equal(wf.cache.inputs.resuse_threshold, 0.07);
+  assert.equal(wf.cache.inputs.start_percent, 0.2);
+  assert.equal(wf.cache.inputs.end_percent, 0.8);
+  assert.equal(wf.cache.inputs.max_steps, 3);
+  assert.equal(wf.cache.inputs.reuse_threshold, undefined);
+});
+t('disabling MiniMaxH3Cache rewires its consumers and leaves PathchSageAttentionKJ untouched', () => {
+  const wf = canonicalGraph();
+  const originalPatch = structuredClone(wf.patch);
+  applyH3WorkflowContract(wf, workflowOptions({ cacheEnabled: false }));
+  assert.equal(wf.cache, undefined);
+  assert.deepEqual(wf.preview.inputs.model, ['patch', 0]);
+  assert.deepEqual(wf.patch, originalPatch);
+});
+t('flat reference inputs and dotted reference inputs are removed before dynamic dotted references are injected', () => {
+  const wf = canonicalGraph();
+  applyH3WorkflowContract(wf, workflowOptions());
+  assert.equal(wf.h3.inputs.ref_image_0, undefined);
+  assert.equal(wf.h3.inputs['ref_images.ref_image_1'][0], 'h3Ref1');
+  assert.deepEqual(wf.h3.inputs['ref_images.ref_image_0'], ['h3Ref0', 0]);
+  assert.deepEqual(wf.h3.inputs['ref_images.ref_image_1'], ['h3Ref1', 0]);
+});
+t('EasyCache compatibility is preserved while sharing the cache controls', () => {
+  const wf = canonicalGraph();
+  wf.cache.class_type = 'EasyCache';
+  wf.cache.inputs = { reuse_threshold: 0.3, start_percent: 0.2, end_percent: 0.9, model: ['patch', 0] };
+  applyH3WorkflowContract(wf, workflowOptions({ cacheThreshold: 0.4, cacheStart: 0.25, cacheEnd: 0.85 }));
+  assert.equal(wf.cache.inputs.reuse_threshold, 0.4);
+  assert.equal(wf.cache.inputs.start_percent, 0.25);
+  assert.equal(wf.cache.inputs.end_percent, 0.85);
+  assert.deepEqual(wf.cache.inputs.model, ['patch', 0]);
 });
 
 console.log(`\n${pass} assertions passed.`);

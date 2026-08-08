@@ -70,6 +70,995 @@ export interface SubjectRef {
   retention?: RetentionMarker;
 }
 
+export type CameraMotion = (typeof CAMERA_MOTIONS)[number];
+export type StructuredShotStructure = 'continuous_moving' | 'locked_single' | 'multi_cut';
+
+/** A typed line owned by exactly one structured shot. */
+export interface StructuredDialogue {
+  speakerId: string;
+  subjectId: string;
+  language: string;
+  exactWords: string;
+  delivery: string;
+  /**
+   * The speaker's fixed vocal identity, copied from character_acting_profile.
+   *
+   * Lives ON THE LINE rather than in a scene-level `performance.voiceProfiles`
+   * list. That list had to agree with the dialogue exactly — one profile per
+   * speaking subject, none for anyone else — and models broke it in both
+   * directions (a profile for a visible-but-silent character; a missing profile
+   * for a speaker). Attaching it to the line makes both states unrepresentable.
+   * Only the FIRST occurrence per subject is emitted; later repeats are ignored.
+   */
+  voicePrompt?: string;
+  /**
+   * The speaker is heard but not seen in this shot.
+   *
+   * Required whenever the speaker has no `acting` entry here, because `acting`
+   * is what puts a character on screen. Without this flag a FORGOTTEN acting
+   * entry would silently become an off-screen voice instead of an error — the
+   * one safety property the acting/scenery split would otherwise have lost.
+   *
+   * It also supplies what the base guide (4.4) demands and the old shape could
+   * not express: the exact phrase `says in an off-screen voiceover`, plus the
+   * lips-remain-closed statement when the speaker is visible but not speaking
+   * on camera.
+   */
+  offScreen?: boolean;
+}
+
+export interface StructuredShotActing {
+  subjectId: string;
+  tactic: string;
+  observableBehavior: string;
+  beatChange: string;
+  reaction?: string;
+  assessmentMoment?: string;
+  interruptedAction?: string;
+}
+
+export interface StructuredVoiceProfile {
+  subjectId: string;
+  voicePrompt: string;
+}
+
+export interface StructuredScenePerformance {
+  objective: string;
+  obstacle: string;
+  stakes: string;
+  physicalBusiness: string;
+  bodyState: string;
+  eyeLife: string;
+  subtext?: string;
+  statusDynamic?: string;
+  proxemics?: string;
+  /** LEGACY. New scenes carry `voicePrompt` on the dialogue line instead. */
+  voiceProfiles?: StructuredVoiceProfile[];
+}
+
+/** A reference in the author's stable order, before runner routing/remapping. */
+export interface StructuredSceneReference extends SubjectRef {
+  id: string;
+  type: 'character' | 'object' | 'location';
+  appearsAs: string;
+  job: string;
+}
+
+/** One time-bounded beat that the compiler turns into one H3 shot block. */
+export interface StructuredSceneShot {
+  id: string;
+  startTime: number;
+  endTime: number;
+  composition: string;
+  /**
+   * Every reference visible in this shot, in emission order: the characters
+   * (from `acting`) followed by the scenery (from `sceneryIds`).
+   *
+   * DERIVED, not authored. A shot used to declare its characters twice — here
+   * and again in `acting[].subjectId` — with nothing keeping the two in
+   * agreement, which produced two measured failure classes: a character present
+   * with no acting entry, and an acting entry for a subject not in the shot.
+   * Deriving the list makes both unrepresentable. Legacy documents that still
+   * carry an authored `subjectIds` are honoured as-is.
+   */
+  subjectIds: string[];
+  /** Objects and locations visible in this shot. Characters never appear here. */
+  sceneryIds?: string[];
+  action: string;
+  cameraMotion: CameraMotion;
+  /** Base guide 4.3's second camera dimension. Omit for medium. */
+  cameraAmplitude?: 'small' | 'large';
+  /** Base guide 4.3's third camera dimension. Omit for normal. */
+  cameraSpeed?: 'slow' | 'fast';
+  sound: string;
+  transition?: string;
+  dialogue?: StructuredDialogue[];
+  /** The characters in this shot, one entry each. Empty for a shot with none. */
+  acting?: StructuredShotActing[];
+}
+
+/** The strict intermediate representation authored by the illustrated-story bundle. */
+export interface StructuredScenePrompt {
+  spokenLines: string[];
+  /**
+   * One or two sentences of visual style, emitted immediately BEFORE [Shot 1].
+   *
+   * Ref guide 5.2 lists this as a full-reference-mode DIFFERENCE from T2VA: the
+   * style opening goes before the first shot marker, not after it. The schema
+   * had no field for it at all, so the bundle's `art_style` — an input this node
+   * declares — reached the renderer not at all, and the slot the guide reserves
+   * for style was occupied by acting-theory metadata instead.
+   */
+  style?: string;
+  summary: string;
+  references: StructuredSceneReference[];
+  shots: StructuredSceneShot[];
+  overallSoundscape: string;
+  nonDiegeticMusic: string;
+  negatives: string[];
+  duration: number;
+  purpose: string;
+  shotStructure: StructuredShotStructure;
+  performance?: StructuredScenePerformance;
+  continuationAnchor?: string;
+}
+
+export interface StructuredSceneCompileOptions {
+  strictPerformance?: boolean;
+  expectedReferenceIds?: readonly string[];
+}
+
+export interface CompiledH3Section {
+  name: (typeof H3_SECTION_ORDER)[number];
+  body: string;
+}
+
+export interface CompiledStructuredScenePrompt {
+  sections: CompiledH3Section[];
+  prompt: string;
+  detailedDescription: string;
+}
+
+const STRUCTURED_MIN_SECONDS = 5;
+const STRUCTURED_MAX_SECONDS = 15.08;
+const STRUCTURED_REFERENCE_TYPES = new Set(['character', 'object', 'location']);
+const STRUCTURED_SHOT_STRUCTURES = new Set<StructuredShotStructure>([
+  'continuous_moving',
+  'locked_single',
+  'multi_cut',
+]);
+
+/**
+ * The one place a shot's visible-reference list is decided.
+ *
+ * NEW SHAPE: `acting[]` is the authority for who is in the shot (one entry per
+ * character) and `sceneryIds[]` carries the objects and locations. The visible
+ * list is the concatenation, characters first — which is also the order the
+ * compiler wants, since `<Subject N>` numbering follows the reference list and
+ * people matter more than props.
+ *
+ * LEGACY SHAPE: an authored `subjectIds` wins outright, so scenes already on
+ * disk from before this change keep compiling byte-identically. New authoring
+ * cannot produce it — the bundle schema sets `additionalProperties: false` and
+ * no longer declares the field.
+ *
+ * Both callers (`validateStructuredScene` and
+ * `validateStructuredScenePerformance`) go through here, so the two can never
+ * disagree about who is in a shot — which is exactly the bug class this
+ * replaces.
+ */
+export function resolveShotSubjectIds(shot: Record<string, unknown>, path: string): string[] {
+  const authored = shot['subjectIds'];
+  if (authored !== undefined) {
+    if (!Array.isArray(authored) || authored.length < 1) {
+      throw new Error(`${path}.subjectIds must contain at least one reference id`);
+    }
+    return authored.map((id, i) => structuredText(id, `${path}.subjectIds[${i}]`));
+  }
+
+  const rawActing = shot['acting'];
+  if (rawActing !== undefined && !Array.isArray(rawActing)) {
+    throw new Error(`${path}.acting must be an array when supplied`);
+  }
+  const characterIds = (rawActing ?? []).map((entry, i) => {
+    const record = structuredRecord(entry);
+    return structuredText(record['subjectId'], `${path}.acting[${i}].subjectId`);
+  });
+
+  const rawScenery = shot['sceneryIds'];
+  if (rawScenery !== undefined && !Array.isArray(rawScenery)) {
+    throw new Error(`${path}.sceneryIds must be an array when supplied`);
+  }
+  const sceneryIds = (rawScenery ?? []).map((id, i) => structuredText(id, `${path}.sceneryIds[${i}]`));
+
+  const resolved = [...characterIds, ...sceneryIds];
+  if (resolved.length < 1) {
+    throw new Error(
+      `${path} has no visible references: give it at least one acting entry (a character) or one sceneryIds entry (an object or location)`,
+    );
+  }
+  const seen = new Set<string>();
+  for (const id of resolved) {
+    if (seen.has(id)) throw new Error(`${path} lists ${id} twice across acting and sceneryIds`);
+    seen.add(id);
+  }
+  return resolved;
+}
+
+function structuredRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('structured scene must be an object');
+  }
+  return value as Record<string, unknown>;
+}
+
+function structuredText(value: unknown, path: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${path} must be a non-empty string`);
+  }
+  return value;
+}
+
+function structuredNumber(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${path} must be a finite number`);
+  }
+  return value;
+}
+
+function formatStructuredTime(seconds: number): string {
+  const whole = Math.floor(seconds);
+  const minutes = Math.floor(whole / 60);
+  const remainder = whole % 60;
+  const milliseconds = Math.round((seconds - whole) * 1000);
+  const carry = milliseconds === 1000 ? 1 : 0;
+  const ms = milliseconds === 1000 ? 0 : milliseconds;
+  return `${String(minutes + Math.floor((remainder + carry) / 60)).padStart(2, '0')}:${String((remainder + carry) % 60).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
+function validateStructuredScene(scene: unknown): StructuredScenePrompt {
+  const root = structuredRecord(scene);
+  const duration = structuredNumber(root['duration'], 'duration');
+  if (duration < STRUCTURED_MIN_SECONDS || duration > STRUCTURED_MAX_SECONDS) {
+    throw new Error(`duration must be between ${STRUCTURED_MIN_SECONDS} and ${STRUCTURED_MAX_SECONDS} seconds`);
+  }
+
+  const rawSpokenLines = root['spokenLines'];
+  if (!Array.isArray(rawSpokenLines)) throw new Error('spokenLines must be an array');
+  const spokenLines = rawSpokenLines.map((line, index) => structuredText(line, `spokenLines[${index}]`));
+
+  const styleValue = root['style'];
+  if (styleValue !== undefined && (typeof styleValue !== 'string' || !styleValue.trim())) {
+    throw new Error('style must be a non-empty string when supplied');
+  }
+  const summary = structuredText(root['summary'], 'summary');
+  const overallSoundscape = structuredText(root['overallSoundscape'], 'overallSoundscape');
+  const nonDiegeticMusic = structuredText(root['nonDiegeticMusic'], 'nonDiegeticMusic');
+  const purpose = structuredText(root['purpose'], 'purpose');
+  const rawShotStructure = structuredText(root['shotStructure'], 'shotStructure') as StructuredShotStructure;
+  if (!STRUCTURED_SHOT_STRUCTURES.has(rawShotStructure)) {
+    throw new Error(`shotStructure must be one of ${[...STRUCTURED_SHOT_STRUCTURES].join(', ')}`);
+  }
+
+  const rawNegatives = root['negatives'];
+  if (!Array.isArray(rawNegatives)) throw new Error('negatives must be an array');
+  const negatives = rawNegatives.map((negative, index) => structuredText(negative, `negatives[${index}]`));
+
+  const rawReferences = root['references'];
+  if (!Array.isArray(rawReferences) || rawReferences.length < 1 || rawReferences.length > 9) {
+    throw new Error('references must contain between 1 and 9 entries');
+  }
+  const referenceIds = new Set<string>();
+  const references: StructuredSceneReference[] = rawReferences.map((value, index) => {
+    const ref = structuredRecord(value);
+    const path = `references[${index}]`;
+    const id = structuredText(ref['id'], `${path}.id`);
+    if (referenceIds.has(id)) throw new Error(`${path}.id duplicates ${id}`);
+    referenceIds.add(id);
+    const type = structuredText(ref['type'], `${path}.type`) as StructuredSceneReference['type'];
+    if (!STRUCTURED_REFERENCE_TYPES.has(type)) {
+      throw new Error(`${path}.type must be character, object, or location`);
+    }
+    const appearsAs = structuredText(ref['appearsAs'], `${path}.appearsAs`);
+    const job = structuredText(ref['job'], `${path}.job`);
+    const retentionValue = ref['retention'];
+    if (retentionValue !== undefined && (typeof retentionValue !== 'string' || !RETENTION_MARKERS.includes(retentionValue as RetentionMarker))) {
+      throw new Error(`${path}.retention must use an official retention marker`);
+    }
+    return {
+      id,
+      type,
+      appearsAs,
+      job,
+      retention: retentionValue as RetentionMarker | undefined,
+    };
+  });
+
+  const rawShots = root['shots'];
+  if (!Array.isArray(rawShots) || rawShots.length < 1) throw new Error('shots must contain at least one entry');
+  if (rawShotStructure === 'multi_cut' && rawShots.length < 2) {
+    throw new Error('multi_cut scenes require at least two shots');
+  }
+  if (rawShotStructure !== 'multi_cut' && rawShots.length !== 1) {
+    throw new Error(`${rawShotStructure} scenes require exactly one shot`);
+  }
+
+  const spokenCounts = new Map<string, number>();
+  for (const line of spokenLines) spokenCounts.set(line, (spokenCounts.get(line) ?? 0) + 1);
+  const speakerSubjects = new Map<string, string>();
+  let previousStart = -1;
+  let previousEnd = 0;
+  const shots: StructuredSceneShot[] = rawShots.map((value, index) => {
+    const shot = structuredRecord(value);
+    const path = `shots[${index}]`;
+    const id = structuredText(shot['id'], `${path}.id`);
+    const startTime = structuredNumber(shot['startTime'], `${path}.startTime`);
+    const endTime = structuredNumber(shot['endTime'], `${path}.endTime`);
+    if (index === 0 && startTime !== 0) throw new Error('the first shot must start at 0 seconds');
+    if (startTime <= previousStart) throw new Error('shot start times must be strictly increasing');
+    if (startTime < 0 || endTime <= startTime || endTime > duration) {
+      throw new Error(`${path} is outside the scene duration bounds`);
+    }
+    if (index > 0 && startTime < previousEnd) {
+      throw new Error(`${path} overlaps the previous shot interval`);
+    }
+    previousStart = startTime;
+    previousEnd = endTime;
+    const composition = structuredText(shot['composition'], `${path}.composition`);
+    const action = structuredText(shot['action'], `${path}.action`);
+    const cameraMotion = structuredText(shot['cameraMotion'], `${path}.cameraMotion`) as CameraMotion;
+    if (!CAMERA_MOTIONS.includes(cameraMotion)) {
+      throw new Error(`${path}.cameraMotion must use a controlled H3 camera vocabulary term`);
+    }
+    const amplitudeValue = shot['cameraAmplitude'];
+    if (amplitudeValue !== undefined && amplitudeValue !== 'small' && amplitudeValue !== 'large') {
+      throw new Error(`${path}.cameraAmplitude must be 'small' or 'large' when supplied`);
+    }
+    const speedValue = shot['cameraSpeed'];
+    if (speedValue !== undefined && speedValue !== 'slow' && speedValue !== 'fast') {
+      throw new Error(`${path}.cameraSpeed must be 'slow' or 'fast' when supplied`);
+    }
+    const sound = structuredText(shot['sound'], `${path}.sound`);
+    const subjectIds = resolveShotSubjectIds(shot, path);
+    for (const idValue of subjectIds) {
+      if (!referenceIds.has(idValue)) throw new Error(`${path} references unknown id ${idValue}`);
+    }
+
+    const transitionValue = shot['transition'];
+    if (transitionValue !== undefined && typeof transitionValue !== 'string') {
+      throw new Error(`${path}.transition must be a string when supplied`);
+    }
+    const rawDialogue = shot['dialogue'];
+    if (rawDialogue !== undefined && !Array.isArray(rawDialogue)) {
+      throw new Error(`${path}.dialogue must be an array when supplied`);
+    }
+    const dialogue: StructuredDialogue[] | undefined = rawDialogue === undefined
+      ? undefined
+      : (rawDialogue as unknown[]).map((value, dialogueIndex) => {
+        const line = structuredRecord(value);
+        const linePath = `${path}.dialogue[${dialogueIndex}]`;
+        const speakerId = structuredText(line['speakerId'], `${linePath}.speakerId`);
+        if (!/^S\d+$/.test(speakerId)) throw new Error(`${linePath}.speakerId must look like S1`);
+        const subjectId = structuredText(line['subjectId'], `${linePath}.subjectId`);
+        if (!referenceIds.has(subjectId)) throw new Error(`${linePath}.subjectId references unknown id ${subjectId}`);
+        const knownSubject = speakerSubjects.get(speakerId);
+        if (knownSubject && knownSubject !== subjectId) {
+          throw new Error(`${linePath}.speakerId ${speakerId} changes subject ownership`);
+        }
+        speakerSubjects.set(speakerId, subjectId);
+        const language = structuredText(line['language'], `${linePath}.language`);
+        const exactWords = structuredText(line['exactWords'], `${linePath}.exactWords`);
+        const delivery = structuredText(line['delivery'], `${linePath}.delivery`);
+        const available = spokenCounts.get(exactWords) ?? 0;
+        if (available < 1) throw new Error(`${linePath}.exactWords must match an exact spokenLines entry`);
+        spokenCounts.set(exactWords, available - 1);
+        const voicePromptValue = line['voicePrompt'];
+        if (voicePromptValue !== undefined && (typeof voicePromptValue !== 'string' || !voicePromptValue.trim())) {
+          throw new Error(`${linePath}.voicePrompt must be a non-empty string when supplied`);
+        }
+        const offScreenValue = line['offScreen'];
+        if (offScreenValue !== undefined && typeof offScreenValue !== 'boolean') {
+          throw new Error(`${linePath}.offScreen must be a boolean when supplied`);
+        }
+        return {
+          speakerId,
+          subjectId,
+          language,
+          exactWords,
+          delivery,
+          voicePrompt: voicePromptValue as string | undefined,
+          offScreen: offScreenValue as boolean | undefined,
+        };
+      });
+
+    const remaining = [...spokenCounts.entries()].filter(([, count]) => count > 0);
+    if (index === rawShots.length - 1 && remaining.length) {
+      throw new Error(`spokenLines has dialogue without exact shot ownership: ${remaining.map(([line]) => line).join(' | ')}`);
+    }
+    return {
+      id,
+      startTime,
+      endTime,
+      composition,
+      subjectIds,
+      action,
+      cameraMotion,
+      cameraAmplitude: amplitudeValue as 'small' | 'large' | undefined,
+      cameraSpeed: speedValue as 'slow' | 'fast' | undefined,
+      sound,
+      transition: transitionValue as string | undefined,
+      dialogue,
+      acting: Array.isArray(shot['acting']) ? shot['acting'] as StructuredShotActing[] : undefined,
+    };
+  });
+
+  const performanceValue = root['performance'];
+  const continuationAnchorValue = root['continuationAnchor'];
+  if (continuationAnchorValue !== undefined && typeof continuationAnchorValue !== 'string') {
+    throw new Error('continuationAnchor must be a string when supplied');
+  }
+  return {
+    spokenLines,
+    style: styleValue as string | undefined,
+    summary,
+    references,
+    shots,
+    overallSoundscape,
+    nonDiegeticMusic,
+    negatives,
+    duration,
+    purpose,
+    shotStructure: rawShotStructure,
+    performance: performanceValue as StructuredScenePerformance | undefined,
+    continuationAnchor: continuationAnchorValue as string | undefined,
+  };
+}
+
+const PERFORMANCE_REQUIRED_FIELDS = [
+  'objective',
+  'obstacle',
+  'stakes',
+  'physicalBusiness',
+  'bodyState',
+  'eyeLife',
+] as const;
+
+const PERFORMANCE_OPTIONAL_FIELDS = [
+  'subtext',
+  'statusDynamic',
+  'proxemics',
+] as const;
+
+const VOICE_PROFILE_REQUIRED_FIELDS = [
+  'subjectId',
+  'voicePrompt',
+] as const;
+
+const ACTING_REQUIRED_FIELDS = [
+  'subjectId',
+  'tactic',
+  'observableBehavior',
+  'beatChange',
+] as const;
+
+function performancePathText(value: unknown, path: string): string {
+  return structuredText(value, path);
+}
+
+/**
+ * Validate the scene-level and per-shot ACTING contract before reference
+ * resolution or any ComfyUI request. `expectedReferenceIds` is the section's
+ * authoritative entity allowlist; an empty list falls back to the scene's own
+ * declarations for legacy callers that do not have the plan available.
+ */
+export function validateStructuredScenePerformance(
+  scene: unknown,
+  expectedReferenceIds: readonly string[],
+  strict: boolean,
+): void {
+  if (!strict) return;
+  const root = structuredRecord(scene);
+  const rawReferences = root['references'];
+  if (!Array.isArray(rawReferences)) throw new Error('references must be an array before performance validation');
+
+  const references = rawReferences.map((value, index) => {
+    const ref = structuredRecord(value);
+    return {
+      id: performancePathText(ref['id'], `references[${index}].id`),
+      type: performancePathText(ref['type'], `references[${index}].type`),
+    };
+  });
+  const sceneRefById = new Map(references.map((ref) => [ref.id, ref]));
+  const expectedDisplay = [...new Set(
+    (expectedReferenceIds.length ? expectedReferenceIds : references.map((ref) => ref.id))
+      .map((id) => String(id).trim()).filter(Boolean),
+  )];
+  const expected = new Set(expectedDisplay);
+  const expectedIds = expectedDisplay.length ? expectedDisplay.join(', ') : '(none)';
+
+  const rawPerformance = root['performance'];
+  if (!rawPerformance || typeof rawPerformance !== 'object' || Array.isArray(rawPerformance)) {
+    throw new Error('performance is required when strict performance mode is enabled');
+  }
+  const performance = rawPerformance as Record<string, unknown>;
+  for (const field of PERFORMANCE_REQUIRED_FIELDS) {
+    performancePathText(performance[field], `performance.${field}`);
+  }
+  for (const field of PERFORMANCE_OPTIONAL_FIELDS) {
+    if (performance[field] !== undefined) performancePathText(performance[field], `performance.${field}`);
+  }
+
+  const rawShots = root['shots'];
+  if (!Array.isArray(rawShots)) throw new Error('shots must be an array before performance validation');
+  const dialogueSubjectIds = new Set<string>();
+  const inlineVoicePrompts = new Set<string>();
+  rawShots.forEach((rawShot, shotIndex) => {
+    const shot = structuredRecord(rawShot);
+    const rawDialogue = shot['dialogue'];
+    if (rawDialogue !== undefined && !Array.isArray(rawDialogue)) {
+      throw new Error(`shots[${shotIndex}].dialogue must be an array when supplied`);
+    }
+    (rawDialogue ?? []).forEach((rawLine, dialogueIndex) => {
+      const line = structuredRecord(rawLine);
+      const subjectId = performancePathText(
+        line['subjectId'],
+        `shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId`,
+      );
+      if (!expected.has(subjectId)) {
+        throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`);
+      }
+      const ref = sceneRefById.get(subjectId);
+      if (!ref) {
+        throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is not declared in references; expected IDs: ${expectedIds}`);
+      }
+      if (ref.type !== 'character') {
+        throw new Error(`shots[${shotIndex}].dialogue[${dialogueIndex}].subjectId "${subjectId}" is not a character reference`);
+      }
+      dialogueSubjectIds.add(subjectId);
+      if (line['voicePrompt'] !== undefined) {
+        performancePathText(
+          line['voicePrompt'],
+          `shots[${shotIndex}].dialogue[${dialogueIndex}].voicePrompt`,
+        );
+        inlineVoicePrompts.add(subjectId);
+      }
+    });
+  });
+
+  // Voice identity comes from the LINE (new shape) or from a scene-level
+  // `performance.voiceProfiles` list (legacy). The list had to agree with the
+  // dialogue exactly and models broke it both ways — a profile for a
+  // visible-but-silent character, and a missing profile for a speaker. On the
+  // line, neither state can be expressed. The legacy path is kept so scenes
+  // already on disk still validate.
+  const rawVoiceProfiles = performance['voiceProfiles'];
+  const usingInlineVoicePrompts = rawVoiceProfiles === undefined;
+  if (usingInlineVoicePrompts) {
+    const missingInline = [...dialogueSubjectIds].filter((id) => !inlineVoicePrompts.has(id));
+    if (missingInline.length) {
+      throw new Error(
+        `every speaking subject needs a voicePrompt on its first line; missing for: ${missingInline.join(', ')}`,
+      );
+    }
+  } else {
+    if (!Array.isArray(rawVoiceProfiles)) {
+      throw new Error('performance.voiceProfiles must be an array when supplied');
+    }
+    const voiceProfileBySubject = new Map<string, StructuredVoiceProfile>();
+    rawVoiceProfiles.forEach((rawProfile, profileIndex) => {
+      const profile = structuredRecord(rawProfile);
+      const path = `performance.voiceProfiles[${profileIndex}]`;
+      for (const field of VOICE_PROFILE_REQUIRED_FIELDS) performancePathText(profile[field], `${path}.${field}`);
+      const subjectId = profile['subjectId'] as string;
+      if (voiceProfileBySubject.has(subjectId)) {
+        throw new Error(`${path}.subjectId duplicates ${subjectId} in performance.voiceProfiles`);
+      }
+      if (!expected.has(subjectId)) {
+        throw new Error(`${path}.subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`);
+      }
+      const ref = sceneRefById.get(subjectId);
+      if (!ref) {
+        throw new Error(`${path}.subjectId "${subjectId}" is not declared in references; expected IDs: ${expectedIds}`);
+      }
+      if (ref.type !== 'character') {
+        throw new Error(`${path}.subjectId "${subjectId}" is a non-character reference and not a dialogue subject`);
+      }
+      if (!dialogueSubjectIds.has(subjectId)) {
+        throw new Error(`${path}.subjectId "${subjectId}" is not a dialogue subject`);
+      }
+      voiceProfileBySubject.set(subjectId, {
+        subjectId,
+        voicePrompt: profile['voicePrompt'] as string,
+      });
+    });
+    const missingVoiceProfiles = [...dialogueSubjectIds].filter((subjectId) => !voiceProfileBySubject.has(subjectId));
+    if (missingVoiceProfiles.length) {
+      throw new Error(`performance.voiceProfiles is missing dialogue subject(s): ${missingVoiceProfiles.join(', ')}`);
+    }
+  }
+
+  rawShots.forEach((rawShot, shotIndex) => {
+    const shot = structuredRecord(rawShot);
+    const subjectIds = resolveShotSubjectIds(shot, `shots[${shotIndex}]`);
+    const characterIds = subjectIds.filter((id) => sceneRefById.get(id)?.type === 'character');
+    const rawActing = shot['acting'];
+    if (rawActing !== undefined && !Array.isArray(rawActing)) {
+      throw new Error(`shots[${shotIndex}].acting must be an array when supplied`);
+    }
+    const isLegacyShot = shot['subjectIds'] !== undefined;
+
+    // Scenery must not smuggle in a character: the whole point of the split is
+    // that `acting` is the ONLY way a person enters a shot. Checked before the
+    // legacy branch below, which would otherwise report the same document as a
+    // missing acting entry and send the author to the wrong field.
+    if (!isLegacyShot && Array.isArray(shot['sceneryIds'])) {
+      shot['sceneryIds'].forEach((id, sceneryIndex) => {
+        const ref = sceneRefById.get(String(id));
+        if (ref?.type === 'character') {
+          throw new Error(
+            `shots[${shotIndex}].sceneryIds[${sceneryIndex}] "${String(id)}" is a character — characters belong in acting[], which is what puts them in the shot`,
+          );
+        }
+      });
+    }
+
+    // LEGACY ONLY. In the derived shape `characterIds` comes from `acting`
+    // itself, so "a character in the shot with no acting entry" is not a state
+    // that can be expressed — gating on the legacy shape keeps this from
+    // pre-empting the more specific errors above and below.
+    if (isLegacyShot && characterIds.length && (!Array.isArray(rawActing) || rawActing.length === 0)) {
+      throw new Error(`shots[${shotIndex}].acting is required for character subject(s): ${characterIds.join(', ')}`);
+    }
+    const actingBySubject = new Set<string>();
+    (rawActing ?? []).forEach((rawActingItem, actingIndex) => {
+      const acting = structuredRecord(rawActingItem);
+      const path = `shots[${shotIndex}].acting[${actingIndex}]`;
+      for (const field of ACTING_REQUIRED_FIELDS) performancePathText(acting[field], `${path}.${field}`);
+      for (const field of ['reaction', 'assessmentMoment', 'interruptedAction'] as const) {
+        if (acting[field] !== undefined) performancePathText(acting[field], `${path}.${field}`);
+      }
+      const subjectId = acting['subjectId'] as string;
+      if (!expected.has(subjectId)) {
+        throw new Error(`${path}.subjectId "${subjectId}" is unknown; expected IDs: ${expectedIds}`);
+      }
+      const ref = sceneRefById.get(subjectId);
+      if (!ref) {
+        throw new Error(`${path}.subjectId "${subjectId}" is not declared in references; expected IDs: ${expectedIds}`);
+      }
+      if (ref.type !== 'character') {
+        // List only the CHARACTERS. This used to print the whole allowlist
+        // under the words "expected character IDs from:", so the message named
+        // the very objects and locations it was rejecting.
+        const characterOptions = references.filter((r) => r.type === 'character').map((r) => r.id);
+        throw new Error(
+          `${path}.subjectId "${subjectId}" is a ${ref.type}, not a character — put objects and locations in sceneryIds. ` +
+            `Character IDs in this scene: ${characterOptions.length ? characterOptions.join(', ') : '(none)'}`,
+        );
+      }
+      if (!subjectIds.includes(subjectId)) {
+        throw new Error(`${path}.subjectId "${subjectId}" is not present in this shot's subjectIds`);
+      }
+      if (actingBySubject.has(subjectId)) {
+        throw new Error(`${path}.subjectId duplicates ${subjectId} in the same shot`);
+      }
+      actingBySubject.add(subjectId);
+    });
+    const missing = characterIds.filter((id) => !actingBySubject.has(id));
+    if (missing.length) {
+      throw new Error(`shots[${shotIndex}].acting is missing character subject(s): ${missing.join(', ')}`);
+    }
+
+    // A speaker with no acting entry is not on screen in this shot. That is a
+    // legal thing to want (a voiceover), but it must be SAID — otherwise a
+    // forgotten acting entry silently turns a character into a disembodied
+    // voice, which is the one failure the derived shape would not catch.
+    if (!isLegacyShot) {
+      (shot['dialogue'] as unknown[] | undefined ?? []).forEach((rawLine, dialogueIndex) => {
+        const line = structuredRecord(rawLine);
+        const subjectId = String(line['subjectId'] ?? '');
+        if (actingBySubject.has(subjectId)) return;
+        if (line['offScreen'] !== true) {
+          throw new Error(
+            `shots[${shotIndex}].dialogue[${dialogueIndex}] subject "${subjectId}" speaks but is not in this shot's acting[], so nothing puts them on screen. ` +
+              `Add an acting entry for them, or set offScreen: true if the line is meant to be an off-screen voiceover.`,
+          );
+        }
+      });
+    }
+  });
+}
+
+function compileStructuredActing(
+  acting: StructuredShotActing,
+  subjectIndexById: Map<string, number>,
+): string {
+  const subjectIndex = subjectIndexById.get(acting.subjectId);
+  if (!subjectIndex) throw new Error(`acting subject ${acting.subjectId} is not in references`);
+  return [
+    `<Subject ${subjectIndex}> Acting:`,
+    `Tactic: ${acting.tactic}.`,
+    `Observable behavior: ${acting.observableBehavior}.`,
+    `Beat change: ${acting.beatChange}.`,
+    acting.reaction ? `Reaction: ${acting.reaction}.` : '',
+    acting.assessmentMoment ? `Assessment moment: ${acting.assessmentMoment}.` : '',
+    acting.interruptedAction ? `Interrupted action: ${acting.interruptedAction}.` : '',
+  ].filter(Boolean).join(' ');
+}
+
+/**
+ * Lower-case a leading capital and drop a trailing period, so an authored
+ * fragment drops cleanly into a sentence frame.
+ *
+ * The frames read `<Subject N> is ___ in <Picture N>.` and `Follow it for ___.`,
+ * but the fields feeding them are described as standalone answers, so models
+ * write "Tall, narrow figure …" and "The defiant smith …". Measured on one
+ * four-reference scene: 24 double periods, 3 broken `is <Capital>` frames, 4
+ * `Follow it for <Capital>` — in EVERY reference of EVERY scene. Constraining
+ * the model instead was tried and measured 5-10x completion tokens plus a retry
+ * cascade, so this is normalised here where it is free.
+ *
+ * An ALL-CAPS or acronym-initial fragment is left alone (`ID reference shoot`),
+ * since lower-casing it would be wrong.
+ */
+function inlineFragment(text: string): string {
+  const trimmed = text.trim().replace(/\.+$/, '');
+  if (!trimmed) return '';
+  const isAcronymStart = /^[A-Z]{2,}/.test(trimmed);
+  return isAcronymStart ? trimmed : trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+}
+
+/** Collapse `..` left over from a fragment that already ended in a period. */
+function tidyPeriods(text: string): string {
+  return text.replace(/\.{2,}(?!\.)/g, '.').replace(/\.\s*\./g, '.');
+}
+
+/**
+ * Only the FILMABLE half of `performance` reaches H3.
+ *
+ * `objective`, `obstacle`, `stakes`, `subtext` and `statusDynamic` are by
+ * construction not visible or audible — they are why the character acts, not
+ * what the camera sees — and the ref guide is explicit that every detail should
+ * correspond to something visible or audible, and that the description must not
+ * decay into plot summary. Measured on a real film: this block was 121 words of
+ * a 332-word description, sitting in the highest-leverage position in the
+ * prompt (before [Shot 1]) where the guide puts the STYLE sentence.
+ *
+ * They still earn their place in the schema — they are what makes the per-shot
+ * `acting` adaptations coherent — they just are not sent to the renderer.
+ */
+function compileStructuredPerformance(performance: StructuredScenePerformance): string {
+  return [
+    `Physical business: ${performance.physicalBusiness}.`,
+    `Body state: ${performance.bodyState}.`,
+    `Eye life: ${performance.eyeLife}.`,
+    performance.proxemics ? `Proxemics: ${performance.proxemics}.` : '',
+  ].filter(Boolean).map((s) => tidyPeriods(s)).join(' ');
+}
+
+/**
+ * Camera motion as natural English inside the shot, not a stacked label.
+ *
+ * Base guide 4.3: "Camera motion should be written as a natural English action
+ * within the shot, rather than stacked as separate labels at the end of a
+ * sentence", and our own measurements note that "in a static medium shot" does
+ * not register as `Static Shot`. The compiler emitted `Camera: Push In.` —
+ * exactly the forbidden form — in every shot of every scene.
+ *
+ * The controlled term is preserved verbatim inside the sentence, which is what
+ * H3 is trained on; only the framing around it changes.
+ */
+const CAMERA_PHRASING: Record<CameraMotion, string> = {
+  'Zoom In': 'The camera performs a Zoom In',
+  'Zoom Out': 'The camera performs a Zoom Out',
+  'Push In': 'The camera performs a Push In',
+  'Pull Out': 'The camera performs a Pull Out',
+  'Pan Left': 'The camera performs a Pan Left',
+  'Pan Right': 'The camera performs a Pan Right',
+  'Truck Left': 'The camera performs a Truck Left',
+  'Truck Right': 'The camera performs a Truck Right',
+  'Tilt Up': 'The camera performs a Tilt Up',
+  'Tilt Down': 'The camera performs a Tilt Down',
+  'Pedestal Up': 'The camera performs a Pedestal Up',
+  'Pedestal Down': 'The camera performs a Pedestal Down',
+  'Arc Shot': 'The camera holds an Arc Shot around the subject',
+  'Tracking Shot': 'The camera holds a Tracking Shot following the subject',
+  'Static Shot': 'The camera holds a Static Shot',
+  'Shake Slightly': 'The camera holds the frame and Shake Slightly',
+  'Shake Strongly': 'The camera holds the frame and Shake Strongly',
+  'POV': 'The shot is a POV from the subject',
+  'Roll Clockwise': 'The camera performs a Roll Clockwise',
+  'Roll Counterclockwise': 'The camera performs a Roll Counterclockwise',
+};
+
+function compileCameraMotion(shot: StructuredSceneShot): string {
+  const base = CAMERA_PHRASING[shot.cameraMotion] ?? `The camera holds a ${shot.cameraMotion}`;
+  const amplitude = shot.cameraAmplitude ? ` with ${shot.cameraAmplitude} amplitude` : '';
+  const speed = shot.cameraSpeed ? ` at ${shot.cameraSpeed} speed` : '';
+  return `${base}${amplitude}${speed}.`;
+}
+
+/**
+ * A cut marker that grammatically continues `At MM:SS.mmm, `.
+ *
+ * The authored `transition` is a standalone sentence, so it arrives capitalised
+ * and often without a documented cut verb — producing `At 00:04.000, The cut
+ * reveals …`. Measured on real output: capitalised mid-sentence in most scenes,
+ * and missing the cut phrase entirely in several. A `pattern` was tried and
+ * measured a 5-10x token blow-up, so it is repaired here instead.
+ */
+const CUT_PHRASE = /^the (shot|camera) (cuts?|transitions?|changes?|switches)\b/i;
+
+function compileCutMarker(index: number, shot: StructuredSceneShot, time: string): string {
+  const authored = inlineFragment(shot.transition ?? '');
+  if (!authored) return `[Shot ${index + 1}] At ${time}, the shot cuts to a new view.`;
+  if (CUT_PHRASE.test(authored)) return `[Shot ${index + 1}] At ${time}, ${authored}.`;
+  // The author described what the cut REVEALS but not that it is a cut; supply
+  // the documented verb and keep their reveal as the clause it introduces.
+  return `[Shot ${index + 1}] At ${time}, the shot cuts to a new view — ${authored}.`;
+}
+
+/**
+ * Negatives as statements of ABSENCE rather than a semicolon list of nouns.
+ *
+ * The ref2va graph is guidance-distilled and has no negative-conditioning input,
+ * so whatever is written here is read as positive prose. `Negative directions:
+ * subtitles; extra people; Vashti flinching.` therefore hands H3 the word
+ * "subtitles" and the image of "Vashti flinching" as things to render. Measured
+ * across models: 6/6 negatives came out as bare nouns on some runs and as
+ * absence phrases on others, so the phrasing cannot be left to the author.
+ */
+function compileNegatives(negatives: string[]): string {
+  const items = negatives
+    .map((n) => inlineFragment(n))
+    .filter(Boolean)
+    .map((n) => n.replace(/^(no|not|never|avoid|without)\s+/i, ''));
+  if (!items.length) return '';
+  const list = items.length === 1
+    ? items[0]!
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]!}`;
+  return tidyPeriods(`The frame stays free of ${list} throughout.`);
+}
+
+function compileStructuredDialogue(
+  line: StructuredDialogue,
+  subjectIndexById: Map<string, number>,
+  visibleInShot: boolean,
+): string {
+  const subjectIndex = subjectIndexById.get(line.subjectId);
+  if (!subjectIndex) throw new Error(`dialogue subject ${line.subjectId} is not in references`);
+  const tag = `<d>[${line.language}] ${line.exactWords}</d>`;
+  // `says ${delivery}` needs an adverbial. Models supply bare adjectives
+  // ("defiant, gritty"), which reads as `says defiant, gritty:`. Adjective-only
+  // deliveries are wrapped; anything already adverbial ("quietly", "with a
+  // strained breath", "in an even tone") is left untouched.
+  const d = line.delivery.trim().replace(/^,\s*/, '');
+  const adverbial = /\b\w+ly\b|^(with|in|through|under|as|while|after|before|at)\b/i.test(d)
+    ? d
+    : `in a ${d} tone`;
+  if (!line.offScreen) {
+    return `<Subject ${subjectIndex}> (${line.speakerId}) says ${adverbial}: ${tag}`;
+  }
+  // Base guide 4.4: voiceover uses this EXACT phrase, and when the speaker is
+  // also on screen the lips-closed statement follows immediately after the tag.
+  const lead = `<Subject ${subjectIndex}> (${line.speakerId}) says in an off-screen voiceover, ${adverbial}: ${tag}`;
+  return visibleInShot ? `${lead} while their lips remain completely closed.` : lead;
+}
+
+/** Compile the strict scene IR into the existing canonical six-section H3 prompt. */
+export function compileStructuredScenePrompt(
+  scene: unknown,
+  options: StructuredSceneCompileOptions = {},
+): CompiledStructuredScenePrompt {
+  if (options.strictPerformance) {
+    validateStructuredScenePerformance(scene, options.expectedReferenceIds ?? [], true);
+  }
+  const value = validateStructuredScene(scene);
+  const subjectIndexById = new Map(value.references.map((reference, index) => [reference.id, index + 1]));
+  const shotsBySubjectIndex = new Map<number, number[]>();
+  value.shots.forEach((shot, shotIdx) => {
+    for (const id of shot.subjectIds) {
+      const n = subjectIndexById.get(id);
+      if (!n) continue;
+      const list = shotsBySubjectIndex.get(n) ?? [];
+      if (!list.includes(shotIdx + 1)) list.push(shotIdx + 1);
+      shotsBySubjectIndex.set(n, list);
+    }
+  });
+  const subjectSections = buildSubjectSections(value.references, shotsBySubjectIndex);
+  // Voice identity: prefer the per-line `voicePrompt` (new shape), falling back
+  // to the scene-level list (legacy). First occurrence per subject wins, which
+  // is also the only one emitted.
+  const voiceProfileBySubject = new Map<string, StructuredVoiceProfile>();
+  if (options.strictPerformance) {
+    for (const shot of value.shots) {
+      for (const line of shot.dialogue ?? []) {
+        if (line.voicePrompt && !voiceProfileBySubject.has(line.subjectId)) {
+          voiceProfileBySubject.set(line.subjectId, {
+            subjectId: line.subjectId,
+            voicePrompt: line.voicePrompt,
+          });
+        }
+      }
+    }
+    for (const profile of value.performance?.voiceProfiles ?? []) {
+      if (!voiceProfileBySubject.has(profile.subjectId)) voiceProfileBySubject.set(profile.subjectId, profile);
+    }
+  }
+  const emittedVoiceProfiles = new Set<string>();
+  const shotDescription = value.shots.map((shot, index) => {
+    const marker = index === 0
+      ? '[Shot 1]'
+      : compileCutMarker(index, shot, formatStructuredTime(shot.startTime));
+    const visibleSubjects = shot.subjectIds
+      .map((subjectId) => `<Subject ${subjectIndexById.get(subjectId)!}>`)
+      .join(', ');
+    const dialogue = (shot.dialogue ?? [])
+      .map((line) => {
+        const voiceIdentity = options.strictPerformance && !emittedVoiceProfiles.has(line.subjectId)
+          ? (() => {
+            const profile = voiceProfileBySubject.get(line.subjectId);
+            if (!profile) throw new Error(`missing voice profile for dialogue subject ${line.subjectId}`);
+            emittedVoiceProfiles.add(line.subjectId);
+            return `Voice identity for <Subject ${subjectIndexById.get(line.subjectId)!}>: ${profile.voicePrompt}`;
+          })()
+          : '';
+        const visibleInShot = shot.subjectIds.includes(line.subjectId);
+        return [voiceIdentity, compileStructuredDialogue(line, subjectIndexById, visibleInShot)]
+          .filter(Boolean).join(' ');
+      })
+      .join(' ');
+    const acting = options.strictPerformance
+      ? (shot.acting ?? [])
+        .map((entry) => compileStructuredActing(entry, subjectIndexById))
+        .join(' ')
+      : '';
+    return [
+      marker,
+      shot.composition,
+      `Visible subjects: ${visibleSubjects}.`,
+      `Action: ${shot.action}`,
+      compileCameraMotion(shot),
+      `Sound: ${shot.sound}.`,
+      acting,
+      dialogue,
+    ].filter(Boolean).map((part) => tidyPeriods(part)).join(' ');
+  }).join('\n\n');
+  const performance = options.strictPerformance && value.performance
+    ? compileStructuredPerformance(value.performance)
+    : '';
+  const trailer = [
+    value.continuationAnchor ? tidyPeriods(`Continuation anchor: ${value.continuationAnchor}.`) : '',
+    compileNegatives(value.negatives),
+  ].filter(Boolean).join('\n');
+  // Ref guide 5.2: in full-reference mode the style opening comes BEFORE the
+  // first shot marker. It leads the description; the filmable half of
+  // `performance` follows it, and the non-filmable half is not emitted at all.
+  const styleOpening = value.style ? tidyPeriods(value.style.trim().replace(/\.*$/, '.')) : '';
+  const detailedDescription = [styleOpening, performance, shotDescription, trailer]
+    .filter(Boolean).join('\n\n');
+
+  const sections = [
+    { name: 'subject_definitions', body: subjectSections.subjectDefinitions },
+    { name: 'summary', body: value.summary },
+    { name: 'retention_analysis', body: subjectSections.retentionAnalysis },
+    { name: 'detailed_description', body: detailedDescription },
+    { name: 'overall_soundscape', body: value.overallSoundscape },
+    { name: 'non_diegetic_music', body: value.nonDiegeticMusic },
+  ] as CompiledH3Section[];
+  return {
+    sections,
+    prompt: assembleH3Prompt({
+      subjectDefinitions: subjectSections.subjectDefinitions,
+      summary: value.summary,
+      retentionAnalysis: subjectSections.retentionAnalysis,
+      detailedDescription,
+      overallSoundscape: value.overallSoundscape,
+      nonDiegeticMusic: value.nonDiegeticMusic,
+    }),
+    detailedDescription,
+  };
+}
+
 /**
  * Emit `subject_definitions` and `retention_analysis` from the resolved plates.
  *
@@ -80,7 +1069,10 @@ export interface SubjectRef {
  * wanting a looser relationship states it per reference rather than having this
  * infer one.
  */
-export function buildSubjectSections(refs: SubjectRef[]): {
+export function buildSubjectSections(
+  refs: SubjectRef[],
+  shotsBySubjectIndex?: Map<number, number[]>,
+): {
   subjectDefinitions: string;
   retentionAnalysis: string;
 } {
@@ -88,11 +1080,16 @@ export function buildSubjectSections(refs: SubjectRef[]): {
   const rets: string[] = [];
   refs.forEach((r, i) => {
     const n = i + 1;
-    const what = (r.appearsAs ?? '').trim() || 'the referenced subject';
-    const job = (r.job ?? '').trim();
+    const what = inlineFragment(r.appearsAs ?? '') || 'the referenced subject';
+    const job = inlineFragment(r.job ?? '');
     const marker: RetentionMarker = r.retention ?? 'fully_preserved';
-    defs.push(`<Subject ${n}> is ${what} in <Picture ${n}>.${job ? ` Follow it for ${job}.` : ''}`);
-    rets.push(`<Subject ${n}>: ${marker} - ${job || `${what} is retained exactly as shown`}.`);
+    defs.push(tidyPeriods(`<Subject ${n}> is ${what} in <Picture ${n}>.${job ? ` Follow it for ${job}.` : ''}`));
+    // Ref guide 4.1 shows the shot list inline: `<Subject 1> (appears in
+    // [Shot 1], [Shot 3]): fully_preserved - …`. The data is already in hand
+    // from each shot's subject list, and it was simply being dropped.
+    const shots = shotsBySubjectIndex?.get(n) ?? [];
+    const where = shots.length ? ` (appears in ${shots.map((x) => `[Shot ${x}]`).join(', ')})` : '';
+    rets.push(tidyPeriods(`<Subject ${n}>${where}: ${marker} - ${job || `${what} is retained exactly as shown`}.`));
   });
   return { subjectDefinitions: defs.join('\n'), retentionAnalysis: rets.join('\n') };
 }
@@ -340,12 +1337,25 @@ export function auditDialogueIntegrity(
   const spoken = new Set(
     [...prose.matchAll(/<d>\[[^\]]*\]([\s\S]*?)<\/d>/g)].map((m) => normLine(m[1])).filter(Boolean),
   );
+  // The compiled prose ends with a `Negative directions: …` trailer, which is a
+  // list of things that must NOT happen. Scanning it for speech verbs turns a
+  // correct instruction into a fatal: a silent scene that asks for "no
+  // whispering, no shouting" reads as three separate claims that someone
+  // speaks. Measured on ember_wright scene_4 — the authoring model was told not
+  // to use speech verbs and put them in `negatives`, which is exactly where
+  // they belong, and the audit killed the render for it. The verb scan below
+  // therefore looks at the DESCRIPTION only.
+  //
+  // (The trailer is still sent to H3, and a bare "no whispers" in positive
+  // prose is its own hazard — but that is a prompt-quality problem, not a
+  // reason to block the render.)
+  const described = prose.replace(/^Negative directions:[^\n]*$/gm, '');
   const assigned = planShots.map((s) => normLine(s.dialogue)).filter(Boolean);
 
   const fatal: string[] = [];
   const warnings: string[] = [];
 
-  const verbs = [...new Set((prose.match(SPEECH_VERBS) || []).map((v) => v.toLowerCase()))];
+  const verbs = [...new Set((described.match(SPEECH_VERBS) || []).map((v) => v.toLowerCase()))];
   if (spoken.size === 0 && verbs.length > 0) {
     fatal.push(
       `prose describes speech (${verbs.slice(0, 4).map((v) => `"${v}"`).join(', ')}) but contains NO <d>[Language] ...</d> ` +
@@ -359,6 +1369,102 @@ export function auditDialogueIntegrity(
     }
   }
   return { fatal, warnings };
+}
+
+/**
+ * Language name (lower-cased) -> the Unicode script block its words should contain.
+ *
+ * The ranges are the first and last code point of each script's Unicode block,
+ * written as literal characters — a block's endpoints are usually unassigned or
+ * combining marks, so they look like blanks or stray accents here rather than
+ * letters. That is expected; the label above each line is what identifies the
+ * block. Keep this file UTF-8: re-encoding it would quietly widen or collapse
+ * these classes, and a silently-broken class makes the gate fail open.
+ */
+const SCRIPT_BY_LANGUAGE: Record<string, RegExp> = {
+  // Devanagari
+  hindi: /[ऀ-ॿ]/, marathi: /[ऀ-ॿ]/, nepali: /[ऀ-ॿ]/,
+  sanskrit: /[ऀ-ॿ]/, konkani: /[ऀ-ॿ]/,
+  // Bengali
+  bengali: /[ঀ-৿]/, bangla: /[ঀ-৿]/, assamese: /[ঀ-৿]/,
+  // Gurmukhi
+  punjabi: /[਀-੿]/, gurmukhi: /[਀-੿]/,
+  // Gujarati
+  gujarati: /[઀-૿]/,
+  // Odia
+  odia: /[଀-୿]/, oriya: /[଀-୿]/,
+  // Tamil
+  tamil: /[஀-௿]/,
+  // Telugu
+  telugu: /[ఀ-౿]/,
+  // Kannada
+  kannada: /[ಀ-೿]/,
+  // Malayalam
+  malayalam: /[ഀ-ൿ]/,
+  // Sinhala
+  sinhala: /[඀-෿]/,
+  // Arabic, plus the Arabic Supplement block that carries Urdu/Pashto-specific letters
+  urdu: /[؀-ۿݐ-ݿ]/, arabic: /[؀-ۿݐ-ݿ]/,
+  persian: /[؀-ۿݐ-ݿ]/, farsi: /[؀-ۿݐ-ݿ]/,
+  pashto: /[؀-ۿݐ-ݿ]/,
+  // Hebrew
+  hebrew: /[֐-׿]/,
+  // Greek
+  greek: /[Ͱ-Ͽ]/,
+  // Cyrillic
+  russian: /[Ѐ-ӿ]/, ukrainian: /[Ѐ-ӿ]/,
+  bulgarian: /[Ѐ-ӿ]/, serbian: /[Ѐ-ӿ]/,
+  // Thai
+  thai: /[฀-๿]/,
+  // CJK Unified Ideographs
+  chinese: /[一-鿿]/, mandarin: /[一-鿿]/, cantonese: /[一-鿿]/,
+  // Japanese: hiragana/katakana, or kanji
+  japanese: /[぀-ヿ一-鿿]/,
+  // Korean: Hangul syllables, or Jamo
+  korean: /[가-힣ᄀ-ᇿ]/,
+};
+
+/**
+ * Flag a `<d>[Language] words</d>` tag whose words are romanized Latin transcription
+ * of a non-Latin-scripted language, instead of the language's own script.
+ *
+ * A seed-matched A/B render just measured what that costs: the SAME Hindi line
+ * written as romanized Latin (`Aap kya padh rahi hain? Mujhe Delhi jaana hai.`) came
+ * out with H3 applying ENGLISH PHONETICS to tokens Latin cannot spell — `padh` got
+ * an English *d* instead of the retroflex ढ़, `Delhi` came out anglicised. The
+ * identical line in Devanagari (`आप क्या पढ़ रही हैं? मुझे दिल्ली जाना है।`) was
+ * pronounced correctly throughout, same seed, same everything else. H3 reads the
+ * text phonetically off the script it's actually written in, so a romanized
+ * transcription of a script-based language is not "the same words, easier to type"
+ * — it is words in a spelling system that cannot represent its own sounds.
+ *
+ * The test is deliberately weak: "contains at least one character of the expected
+ * script", never "is entirely that script". A Hindi line legitimately embeds Latin
+ * proper nouns and English loanwords (`मुझे Delhi जाना है।`), so requiring purity
+ * would flag correct lines. One native-script character is enough to prove the line
+ * was actually written in it rather than transliterated.
+ *
+ * Why structural and not a prompt rule: every prose dialogue rule tried on this
+ * bundle has drifted, and this one is exactly checkable — the language name is
+ * right there in the tag, and its script is a fixed Unicode range — so a rule the
+ * model keeps breaking does not belong in a prompt.
+ */
+export function auditDialogueScript(prose: string): string[] {
+  const findings: string[] = [];
+  for (const m of prose.matchAll(/<d>\[([^\]]*)\]([\s\S]*?)<\/d>/g)) {
+    const language = m[1]!.trim().toLowerCase();
+    const words = m[2]!;
+    const script = SCRIPT_BY_LANGUAGE[language];
+    if (!script) continue;
+    if (!script.test(words)) {
+      const quote = words.trim().slice(0, 60);
+      findings.push(
+        `romanized ${m[1]!.trim()} in <d>[${m[1]!.trim()}]…</d> — "${quote}" contains no native script; ` +
+          'H3 will apply English phonetics and mispronounce it',
+      );
+    }
+  }
+  return findings;
 }
 
 /**
