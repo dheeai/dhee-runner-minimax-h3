@@ -51,7 +51,7 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
 import { injectAuthoredDialogue } from './dialogueInjection.js';
-import { buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
+import { stepsForSceneComplexity, buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
 
 export * from './dialogueInjection.js';
 export * from './officialFormat.js';
@@ -82,6 +82,16 @@ export const H3_PROMPT_CHAR_LIMIT = 7000;
 export const WORDS_PER_SEC = 2.8;
 export const FIXED_OVERHEAD_SEC = 1.0;
 export const INTER_LINE_GAP_SEC = 0.35;
+/**
+ * Breathing room after the last word.
+ *
+ * FIXED_OVERHEAD_SEC covers lead-in AND tail together, but lead-in alone was
+ * measured at 0.40-1.33s depending on where the <d> tag sits — which can leave
+ * the tail at zero and the last word landing on the final frame. Reported from a
+ * real film: an 11-word line in a 6.58s clip, sound running continuously to the
+ * last frame with no trailing silence. This is the margin that stops that.
+ */
+export const TAIL_MARGIN_SEC = 0.6;
 
 /**
  * Seconds of SPOKEN dialogue a beat needs: word-paced duration plus fixed
@@ -89,9 +99,34 @@ export const INTER_LINE_GAP_SEC = 0.35;
  * whitespace-tokenized (works for Devanagari — Hindi uses spaces). Duplicated
  * in dhee-runner-story-chapters/src/chapterMerge.ts — keep both in sync.
  */
-export function speechSecondsFor(lines: string[]): number {
-  const words = lines.reduce((sum, line) => sum + String(line ?? '').trim().split(/\s+/).filter(Boolean).length, 0);
-  return words / WORDS_PER_SEC + FIXED_OVERHEAD_SEC + Math.max(0, lines.length - 1) * INTER_LINE_GAP_SEC;
+export function speechSecondsFor(lines: string[], authoredSeconds?: number): number {
+  const texts = lines.map((line) => String(line ?? '').trim()).filter(Boolean);
+  const words = texts.reduce((sum, line) => sum + line.split(/\s+/).filter(Boolean).length, 0);
+
+  // Count SENTENCES, not array entries. A scene author may put two utterances in
+  // one `spokenLines` string ("Give it here, Vashti. The Rift has a claim on
+  // it.") — the pause between them is spoken either way, so paying for it only
+  // when they happen to be separate array entries under-budgets the clip.
+  const sentences = texts.reduce((n, line) => {
+    const parts = line.split(/[.!?]+[\s"'\u2019\u201d]*/).filter((p) => p.trim().length);
+    return n + Math.max(1, parts.length);
+  }, 0);
+
+  const heuristic = words / WORDS_PER_SEC
+    + FIXED_OVERHEAD_SEC
+    + TAIL_MARGIN_SEC
+    + Math.max(0, sentences - 1) * INTER_LINE_GAP_SEC;
+
+  // The AUTHORING MODEL'S estimate wins when it is LONGER. It knows things the
+  // constant cannot: the delivery it wrote ("cold, imperative"), the voice
+  // profile's pace ("slow pace, gravelly"), and where it intends pauses. 2.8
+  // words/sec was measured off the least padding-distorted line — a best case —
+  // so a slow, deliberate voice runs well under it. Only ever raises the floor:
+  // a model that under-estimates cannot squeeze the words.
+  const authored = typeof authoredSeconds === 'number' && Number.isFinite(authoredSeconds) && authoredSeconds > 0
+    ? authoredSeconds + TAIL_MARGIN_SEC
+    : 0;
+  return Math.max(heuristic, authored);
 }
 
 export type Workflow = Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
@@ -483,6 +518,49 @@ export function composePrompt(bindingClause: string, prose: string, limit = H3_P
  * reference image is loaded or any ComfyUI request is queued. `expectedIds` is
  * the authoritative scene-level inventory, not the whole story-bible map.
  */
+/**
+ * Drop scenery the section is not licensed to show, instead of failing the run.
+ *
+ * `sceneryIds` is the ONE place where a stray id is harmless to remove: it names
+ * objects and locations in the background, so losing one costs a prop, while
+ * failing costs the whole render — and every scene after it.
+ *
+ * Measured twice on a real film: a section's prose said "Vashti does not look at
+ * the lantern", the lantern was legitimately absent from that section's entity
+ * allowlist (it is a rhetorical mention, not a staged prop), and the scene author
+ * staged it anyway. A prompt rule telling the author that the allowlist wins was
+ * added and did NOT hold — which is this bundle's own repeated finding: prose
+ * rules drift, structural ones hold.
+ *
+ * Everything else still hard-fails. `references`, dialogue `subjectId` and
+ * `acting[].subjectId` are identity-critical — silently dropping one of those
+ * would change who is in the film, so those are worth stopping for.
+ *
+ * Returns the ids it removed so the caller can log them; a silent drop would just
+ * be a quieter version of the bug.
+ */
+export function pruneUnlicensedScenery(scene: unknown, expectedIds: readonly string[]): string[] {
+  if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return [];
+  const expected = new Set(expectedIds.map((id) => String(id).trim().toLowerCase()).filter(Boolean));
+  if (!expected.size) return [];
+  const shots = (scene as Record<string, unknown>)['shots'];
+  if (!Array.isArray(shots)) return [];
+  const dropped: string[] = [];
+  shots.forEach((rawShot, index) => {
+    if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) return;
+    const shot = rawShot as Record<string, unknown>;
+    const scenery = shot['sceneryIds'];
+    if (!Array.isArray(scenery)) return;
+    const kept = scenery.filter((id) => {
+      const ok = typeof id === 'string' && expected.has(id.trim().toLowerCase());
+      if (!ok && typeof id === 'string') dropped.push(`shots[${index}].sceneryIds="${id}"`);
+      return ok;
+    });
+    if (kept.length !== scenery.length) shot['sceneryIds'] = kept;
+  });
+  return dropped;
+}
+
 export function validateStructuredSceneReferences(scene: unknown, expectedIds: readonly string[]): void {
   if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return;
   const root = scene as Record<string, unknown>;
@@ -518,12 +596,9 @@ export function validateStructuredSceneReferences(scene: unknown, expectedIds: r
           add(`shots[${shotIndex}].subjectIds[${subjectIndex}]`, subjectId);
         });
       }
-      const sceneryIds = shotRecord['sceneryIds'];
-      if (Array.isArray(sceneryIds)) {
-        sceneryIds.forEach((sceneryId, sceneryIndex) => {
-          add(`shots[${shotIndex}].sceneryIds[${sceneryIndex}]`, sceneryId);
-        });
-      }
+      // sceneryIds is deliberately NOT checked here — pruneUnlicensedScenery()
+      // has already removed anything unlicensed, because a stray background prop
+      // is worth dropping, not worth killing a run for.
       const acting = shotRecord['acting'];
       if (Array.isArray(acting)) {
         acting.forEach((entry, actingIndex) => {
@@ -824,7 +899,15 @@ export function resolveSeconds(
   fallbackSeconds: number,
   minSeconds: number,
   maxSeconds: number,
+  sceneSpokenLines?: unknown,
+  authoredSpeechSeconds?: number,
 ): { seconds: number; source: string; clamped: boolean; speechFloorSec?: number } {
+  // The SCENE's own ledger beats the plan's when present: `spokenLines` is the
+  // exact-word list the render will actually speak, and the scene author may
+  // legitimately have merged, split or re-punctuated what the plan proposed.
+  const sceneLines = Array.isArray(sceneSpokenLines)
+    ? sceneSpokenLines.map((l) => String(l ?? '').trim()).filter(Boolean)
+    : [];
   let raw: number | undefined = undefined;
   let source = 'fallback';
   if (typeof authored === 'number' && Number.isFinite(authored) && authored > 0) { raw = authored; source = 'prompt'; }
@@ -834,12 +917,13 @@ export function resolveSeconds(
   }
   if (raw === undefined) raw = fallbackSeconds;
 
-  const dialogueLines = planShots
+  const planLines = planShots
     .map((s) => (typeof s?.dialogue === 'string' ? s.dialogue.trim() : ''))
     .filter((l) => l.length > 0);
+  const dialogueLines = sceneLines.length ? sceneLines : planLines;
   let speechFloorSec: number | undefined;
   if (dialogueLines.length) {
-    speechFloorSec = speechSecondsFor(dialogueLines);
+    speechFloorSec = speechSecondsFor(dialogueLines, authoredSpeechSeconds);
     if (speechFloorSec > raw) {
       raw = speechFloorSec;
       source = `${source}+speechFloor(${speechFloorSec.toFixed(2)}s)`;
@@ -1140,7 +1224,11 @@ const H3_DESC: RunnerDescription = {
       height: { type: 'integer', description: 'Default 768.' },
       resolutionInput: { type: 'string', description: "Input id of a PROJECT FIELD holding the render resolution — a preset ('480p', '540p', '720p', '768p', 'native') or an explicit '<w>x<h>'. Takes precedence over width/height so an operator can author cheap and render the final cut at native without editing the bundle; cost scales as ~pixels^1.3, so 480p is ~3.7x faster than native. An unrecognised value falls back to width/height rather than failing the render." },
       refImageSize: { type: 'string', enum: ['match', 'max'], description: "'match' scales references to the generation resolution (faster); 'max' preserves up to 2048px short edge (stronger identity, slower). Default 'match'." },
-      steps: { type: 'integer', description: 'Sampler steps, default 20 (stock template).' },
+      steps: { type: 'integer', description: 'Fixed sampler steps. Omit (or set stepsAuto) to scale with scene complexity between minSteps and maxSteps. The turbo LoRA is distilled to a low step count — 8 was measured to attenuate generated audio ~15 dB.' },
+      stepsInput: { type: 'string', description: "Input id of a PROJECT FIELD holding the step count — a number, or 'auto' to scale with scene complexity. Takes precedence over steps/stepsAuto so an operator can pin a count for one project without editing the bundle. An unrecognised value falls back to the config." },
+      stepsAuto: { type: 'boolean', description: 'Scale steps with scene complexity (cuts, references, dialogue lines, duration) between minSteps and maxSteps. Default true when `steps` is not set.' },
+      minSteps: { type: 'integer', description: 'Floor for auto steps. Default 4 — the turbo LoRA\'s distilled step count.' },
+      maxSteps: { type: 'integer', description: 'Ceiling for auto steps. Default 10.' },
       samplerName: { type: 'string', description: "Default 'res_multistep'." },
       scheduler: { type: 'string', description: "Default 'simple' — the founder-tested scheduler for the canonical INT8 + MiniMaxH3Cache graph." },
       seed: { type: 'integer', description: 'Base seed; the per-item seed is derived from it + the item id so a rerun is stable but scenes differ.' },
@@ -1188,8 +1276,15 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const useStructuredPrompt = shouldCompileStructuredPrompt(promptDoc, structuredMode);
   if (promptDoc && useStructuredPrompt) {
     const expectedIds = expectedSceneReferenceIds(ctx, cfg, plan, itemId);
-    if (expectedIds) validateStructuredSceneReferences(promptDoc, expectedIds);
-    validateStructuredScenePerformance(promptDoc, expectedIds ?? [], rb(cfg, 'strictPerformance') ?? false);
+    if (expectedIds) {
+      const pruned = pruneUnlicensedScenery(promptDoc, expectedIds);
+      if (pruned.length) {
+        ctx.log(tag(`${itemId}: dropped ${pruned.length} unlicensed scenery id(s) not in this section's entities — ${pruned.join(', ')}`));
+      }
+      validateStructuredSceneReferences(promptDoc, expectedIds);
+    }
+    const perfNotes = validateStructuredScenePerformance(promptDoc, expectedIds ?? [], rb(cfg, 'strictPerformance') ?? false);
+    for (const note of perfNotes) ctx.log(tag(`${itemId}: ${note}`));
   }
   const authored = promptDoc ? rn(promptDoc, rs(cfg, 'durationField') ?? 'duration') : undefined;
   const fps = rn(cfg, 'fps') ?? H3_FPS;
@@ -1199,6 +1294,8 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     rn(cfg, 'seconds') ?? 10,
     rn(cfg, 'minSeconds') ?? H3_MIN_SECONDS,
     maxSeconds,
+    (promptDoc as Record<string, unknown> | undefined)?.['spokenLines'],
+    rn((promptDoc ?? {}) as Record<string, unknown>, 'speechSeconds'),
   );
   const LEN = snapH3Frames(seconds * fps);
   if (clamped) ctx.log(tag(`${itemId}: duration clamped to ${seconds}s (H3 renders 5–15s per call; the planner asked for more or less)`));
@@ -1357,7 +1454,38 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const He = geom.height;
   if (geom.source !== 'config') ctx.log(tag(`${itemId}: ${W}x${He} from project ${geom.source}`));
   const refImageSize = rs(cfg, 'refImageSize') ?? 'match';
-  const steps = Math.max(1, Math.round(rn(cfg, 'steps') ?? 20));
+  // Steps: fixed when the bundle says so, otherwise scaled to what the scene is
+  // actually asking for. Default floor 4 — the turbo LoRA's distilled count, and
+  // the fix for the ~15 dB audio attenuation that 8 sigmas caused (#10).
+  // A project field wins over the bundle default, the same way resolution does:
+  // an operator pinning "8" for one film should not have to edit a bundle every
+  // other project shares.
+  const stepsKey = rs(cfg, 'stepsInput');
+  const projectSteps = stepsKey ? ctx.inputs[stepsKey] : undefined;
+  const projectStepsNum = typeof projectSteps === 'number'
+    ? projectSteps
+    : (typeof projectSteps === 'string' && /^\d+$/.test(projectSteps.trim()) ? Number(projectSteps.trim()) : undefined);
+  const projectStepsAuto = typeof projectSteps === 'string' && projectSteps.trim().toLowerCase() === 'auto';
+
+  const fixedSteps = projectStepsNum ?? rn(cfg, 'steps');
+  const stepsAuto = projectStepsAuto
+    || (projectStepsNum === undefined && (rb(cfg, 'stepsAuto') ?? fixedSteps === undefined));
+  const minSteps = Math.max(1, Math.round(rn(cfg, 'minSteps') ?? 4));
+  const maxSteps = Math.max(minSteps, Math.round(rn(cfg, 'maxSteps') ?? 10));
+  let stepsReason = 'fixed';
+  let steps: number;
+  if (stepsAuto) {
+    const scaled = stepsForSceneComplexity(
+      (promptDoc ?? {}) as Record<string, unknown>,
+      minSteps,
+      maxSteps,
+    );
+    steps = scaled.steps;
+    stepsReason = `auto ${minSteps}-${maxSteps}${projectStepsAuto ? ` from project ${stepsKey}` : ''}: ${scaled.reason}`;
+  } else {
+    steps = Math.max(1, Math.round(fixedSteps ?? 4));
+    stepsReason = projectStepsNum !== undefined ? `fixed from project ${stepsKey}` : 'fixed';
+  }
   const samplerName = rs(cfg, 'samplerName') ?? 'res_multistep';
   const scheduler = rs(cfg, 'scheduler') ?? 'simple';
   const baseSeed = Math.round(rn(cfg, 'seed') ?? 42);
@@ -1412,7 +1540,7 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const leftover = Object.values(wf).flatMap((n) => Object.values(n.inputs ?? {}).filter((v): v is string => typeof v === 'string' && /^__[A-Z0-9_]+__$/.test(v)));
   if (leftover.length) return { ok: false, error: tag(`unfilled placeholders: ${[...new Set(leftover)].join(', ')}`) };
 
-  ctx.log(tag(`${itemId} — ${refs.length} ref(s) [${refs.map((r) => r.id).join(', ')}], ${W}x${He}, ${LEN}f (${(LEN / fps).toFixed(2)}s from ${source}), ${samplerName}/${scheduler} ${steps} steps, seed ${usedSeed}, on ${baseUrl}`));
+  ctx.log(tag(`${itemId} — ${refs.length} ref(s) [${refs.map((r) => r.id).join(', ')}], ${W}x${He}, ${LEN}f (${(LEN / fps).toFixed(2)}s from ${source}), ${samplerName}/${scheduler} ${steps} steps (${stepsReason}), seed ${usedSeed}, on ${baseUrl}`));
 
   await mkdir(dirname(outAbs), { recursive: true });
   const timeoutMs = Math.max(1, rn(cfg, 'timeoutMinutes') ?? 45) * 60_000;

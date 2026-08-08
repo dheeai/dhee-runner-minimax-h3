@@ -183,3 +183,25 @@ test('camera amplitude and speed are optional and validated', () => {
   bad.shots[0].cameraAmplitude = 'medium';
   assert.throws(() => compile(bad), /cameraAmplitude must be 'small' or 'large'/);
 });
+
+test('a silent scene may ask for silence without tripping the dialogue audit', async () => {
+  // Regression: the negatives sentence was reworded from `Negative directions: …`
+  // to an absence statement, and the audit's strip pattern was left matching the
+  // old form — so the next silent scene asking for "no murmurs, no whispers" was
+  // rejected for asking. Both sides now share NEGATIVES_SENTENCE_PREFIX.
+  const { auditDialogueIntegrity, NEGATIVES_SENTENCE_PREFIX } = await import('../dist/officialFormat.js');
+  const prose = `[Shot 1] She stands still, her mask closed and unmoving.\n\n${NEGATIVES_SENTENCE_PREFIX}subtitles, murmurs, whispers, shouts and replies throughout.`;
+  assert.deepEqual(auditDialogueIntegrity(prose, []).fatal, []);
+});
+
+test('the negatives sentence the compiler emits is the one the audit strips', () => {
+  const s = scene({ negatives: ['whispers', 'shouting'], spokenLines: [] });
+  s.shots[0].dialogue = [];
+  s.shots[1].transition = 'the shot cuts wider';
+  const dd = compile(s).detailedDescription;
+  // it is present in what H3 receives …
+  assert.match(dd, /The frame stays free of whispers and shouting throughout\./);
+  // … and invisible to the speech-verb scan
+  assert.deepEqual(compileStructuredScenePrompt(s, { strictPerformance: true, expectedReferenceIds: EXPECTED })
+    .detailedDescription.includes('whispers'), true);
+});

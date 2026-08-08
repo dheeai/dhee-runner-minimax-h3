@@ -62,6 +62,8 @@ export const CAMERA_MOTIONS = [
 ] as const;
 
 export interface SubjectRef {
+  /** reference id; split sheet views arrive as `<id>#v0`, `<id>#v1` of ONE subject */
+  id?: string;
   /** short visual descriptor, e.g. "the elderly hunched fisherwoman in a green sari" */
   appearsAs?: string;
   /** what this plate is for, completing "Follow it for ___" */
@@ -555,8 +557,9 @@ export function validateStructuredScenePerformance(
   scene: unknown,
   expectedReferenceIds: readonly string[],
   strict: boolean,
-): void {
-  if (!strict) return;
+): string[] {
+  const notes: string[] = [];
+  if (!strict) return notes;
   const root = structuredRecord(scene);
   const rawReferences = root['references'];
   if (!Array.isArray(rawReferences)) throw new Error('references must be an array before performance validation');
@@ -687,18 +690,22 @@ export function validateStructuredScenePerformance(
     }
     const isLegacyShot = shot['subjectIds'] !== undefined;
 
-    // Scenery must not smuggle in a character: the whole point of the split is
-    // that `acting` is the ONLY way a person enters a shot. Checked before the
-    // legacy branch below, which would otherwise report the same document as a
-    // missing acting entry and send the author to the wrong field.
+    // A character filed under `sceneryIds` is a BACKGROUND PRESENCE, not an
+    // error. The acting/scenery split assumes every character is a performer,
+    // and a collective is not: an advancing rank of skeletons a hundred feet
+    // away, a crowd behind a barrier, a body on the floor. Measured on a real
+    // film — a horde typed `character` in the bible was filed as scenery by the
+    // scene author, which is the right reading, and the render was rejected for
+    // it, killing a 60s battle.
+    //
+    // So they stay visible and are simply exempt from the per-character acting
+    // requirement below. Filing a LEAD this way silently costs its acting
+    // direction, which is why it is logged rather than accepted quietly.
+    const backgroundCharacters = new Set<string>();
     if (!isLegacyShot && Array.isArray(shot['sceneryIds'])) {
-      shot['sceneryIds'].forEach((id, sceneryIndex) => {
+      shot['sceneryIds'].forEach((id) => {
         const ref = sceneRefById.get(String(id));
-        if (ref?.type === 'character') {
-          throw new Error(
-            `shots[${shotIndex}].sceneryIds[${sceneryIndex}] "${String(id)}" is a character — characters belong in acting[], which is what puts them in the shot`,
-          );
-        }
+        if (ref?.type === 'character') backgroundCharacters.add(String(id));
       });
     }
 
@@ -743,9 +750,14 @@ export function validateStructuredScenePerformance(
       }
       actingBySubject.add(subjectId);
     });
-    const missing = characterIds.filter((id) => !actingBySubject.has(id));
+    const missing = characterIds.filter((id) => !actingBySubject.has(id) && !backgroundCharacters.has(id));
     if (missing.length) {
       throw new Error(`shots[${shotIndex}].acting is missing character subject(s): ${missing.join(', ')}`);
+    }
+    if (backgroundCharacters.size) {
+      notes.push(
+        `shots[${shotIndex}]: ${[...backgroundCharacters].join(', ')} appear(s) as background presence (filed in sceneryIds, no acting direction)`,
+      );
     }
 
     // A speaker with no acting entry is not on screen in this shot. That is a
@@ -766,6 +778,7 @@ export function validateStructuredScenePerformance(
       });
     }
   });
+  return notes;
 }
 
 function compileStructuredActing(
@@ -907,6 +920,18 @@ function compileCutMarker(index: number, shot: StructuredSceneShot, time: string
  * across models: 6/6 negatives came out as bare nouns on some runs and as
  * absence phrases on others, so the phrasing cannot be left to the author.
  */
+/**
+ * The one phrasing of the negatives sentence, shared with the dialogue audit.
+ *
+ * These two MUST agree: the audit scans the description for speech verbs, and a
+ * silent scene legitimately asks for "no murmurs, no whispers". When the
+ * negatives sentence was reworded from `Negative directions: …` to an absence
+ * statement, the audit's strip pattern was left matching the old form — and the
+ * next silent scene was rejected for asking for silence. A shared constant is
+ * what stops that happening again.
+ */
+export const NEGATIVES_SENTENCE_PREFIX = 'The frame stays free of ';
+
 function compileNegatives(negatives: string[]): string {
   const items = negatives
     .map((n) => inlineFragment(n))
@@ -916,7 +941,7 @@ function compileNegatives(negatives: string[]): string {
   const list = items.length === 1
     ? items[0]!
     : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]!}`;
-  return tidyPeriods(`The frame stays free of ${list} throughout.`);
+  return tidyPeriods(`${NEGATIVES_SENTENCE_PREFIX}${list} throughout.`);
 }
 
 function compileStructuredDialogue(
@@ -1075,23 +1100,51 @@ export function buildSubjectSections(
 ): {
   subjectDefinitions: string;
   retentionAnalysis: string;
+  /** 0-based ref index -> 1-based <Subject N>. Several refs may share a subject. */
+  subjectIndexByRef: number[];
 } {
+  // GROUP BY IDENTITY, not by image slot. A multi-view identity sheet is split
+  // into separate reference images (`sudha#v0`, `sudha#v1`) because H3 reads a
+  // contact sheet as scenery — but those are two PICTURES of ONE subject, and
+  // emitting one <Subject N> per picture told H3 there were two women in a
+  // saree. It rendered two. Reported on a real film: a scene written for one
+  // character came back with two people in frame.
+  //
+  // The guide is explicit that this is the supported shape: "One subject may be
+  // defined by multiple reference assets", written as a single subject citing
+  // each asset. Grouping also realigns the numbering — <Subject N> in the
+  // description is built from the AUTHORED references (one per character), so
+  // once expansion added a second picture the two lists disagreed about who
+  // Subject 2 was.
+  const groups: Array<{ base: string; pictures: number[]; ref: SubjectRef }> = [];
+  const subjectIndexByRef: number[] = [];
+  refs.forEach((r, i) => {
+    const base = String(r.id ?? `\u0000${i}`).replace(/#v\d+$/, '');
+    const last = groups[groups.length - 1];
+    if (last && last.base === base) last.pictures.push(i + 1);
+    else groups.push({ base, pictures: [i + 1], ref: r });
+    subjectIndexByRef[i] = groups.length;
+  });
+
   const defs: string[] = [];
   const rets: string[] = [];
-  refs.forEach((r, i) => {
-    const n = i + 1;
-    const what = inlineFragment(r.appearsAs ?? '') || 'the referenced subject';
-    const job = inlineFragment(r.job ?? '');
-    const marker: RetentionMarker = r.retention ?? 'fully_preserved';
-    defs.push(tidyPeriods(`<Subject ${n}> is ${what} in <Picture ${n}>.${job ? ` Follow it for ${job}.` : ''}`));
-    // Ref guide 4.1 shows the shot list inline: `<Subject 1> (appears in
-    // [Shot 1], [Shot 3]): fully_preserved - …`. The data is already in hand
-    // from each shot's subject list, and it was simply being dropped.
+  groups.forEach((g, gi) => {
+    const n = gi + 1;
+    // "(view 1)" is a crop artefact, not part of what the subject looks like
+    const what = inlineFragment((g.ref.appearsAs ?? '').replace(/\s*\(view \d+\)\s*$/i, '')) || 'the referenced subject';
+    const job = inlineFragment(g.ref.job ?? '');
+    const marker: RetentionMarker = g.ref.retention ?? 'fully_preserved';
+    const pics = g.pictures.map((p) => `<Picture ${p}>`);
+    const cited = pics.length === 1
+      ? pics[0]!
+      : `${pics.slice(0, -1).join(', ')} and ${pics[pics.length - 1]!}`;
+    const same = pics.length > 1 ? ' They are the same subject seen from different angles, not separate characters.' : '';
+    defs.push(tidyPeriods(`<Subject ${n}> is ${what} in ${cited}.${job ? ` Follow it for ${job}.` : ''}${same}`));
     const shots = shotsBySubjectIndex?.get(n) ?? [];
     const where = shots.length ? ` (appears in ${shots.map((x) => `[Shot ${x}]`).join(', ')})` : '';
     rets.push(tidyPeriods(`<Subject ${n}>${where}: ${marker} - ${job || `${what} is retained exactly as shown`}.`));
   });
-  return { subjectDefinitions: defs.join('\n'), retentionAnalysis: rets.join('\n') };
+  return { subjectDefinitions: defs.join('\n'), retentionAnalysis: rets.join('\n'), subjectIndexByRef };
 }
 
 /**
@@ -1337,19 +1390,20 @@ export function auditDialogueIntegrity(
   const spoken = new Set(
     [...prose.matchAll(/<d>\[[^\]]*\]([\s\S]*?)<\/d>/g)].map((m) => normLine(m[1])).filter(Boolean),
   );
-  // The compiled prose ends with a `Negative directions: …` trailer, which is a
-  // list of things that must NOT happen. Scanning it for speech verbs turns a
-  // correct instruction into a fatal: a silent scene that asks for "no
-  // whispering, no shouting" reads as three separate claims that someone
-  // speaks. Measured on ember_wright scene_4 — the authoring model was told not
-  // to use speech verbs and put them in `negatives`, which is exactly where
-  // they belong, and the audit killed the render for it. The verb scan below
-  // therefore looks at the DESCRIPTION only.
+  // The compiled prose ends with a negatives sentence, which is a list of things
+  // that must NOT happen. Scanning it for speech verbs turns a correct
+  // instruction into a fatal: a silent scene that asks for "no whispering, no
+  // shouting" reads as three separate claims that someone speaks. Measured on
+  // ember_wright scene_4 TWICE — once with the old `Negative directions:` form,
+  // and again after the sentence was reworded here without updating the strip.
+  // Hence NEGATIVES_SENTENCE_PREFIX, shared with the compiler.
   //
-  // (The trailer is still sent to H3, and a bare "no whispers" in positive
-  // prose is its own hazard — but that is a prompt-quality problem, not a
-  // reason to block the render.)
-  const described = prose.replace(/^Negative directions:[^\n]*$/gm, '');
+  // (The sentence is still sent to H3; a negative that names a speech act is
+  // its own prompt-quality hazard, but not a reason to block a render.)
+  const escapedPrefix = NEGATIVES_SENTENCE_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const described = prose
+    .replace(new RegExp(`^${escapedPrefix}[^\n]*$`, 'gm'), '')
+    .replace(/^Negative directions:[^\n]*$/gm, '');
   const assigned = planShots.map((s) => normLine(s.dialogue)).filter(Boolean);
 
   const fatal: string[] = [];
@@ -1513,4 +1567,98 @@ export function auditDetailedDescription(text: string, opts: { hasDialogue: bool
   if (words < 250) notes.push(`detailed_description is ${words} words (guide: normally 350-500)`);
   if (words > 700) notes.push(`detailed_description is ${words} words (guide: normally 350-500)`);
   return notes;
+}
+
+/**
+ * Sampler steps scaled to how much the scene is actually asking for.
+ *
+ * The turbo LoRA is distilled to a low step count, and driving it at a fixed 8
+ * was measured to cost real quality: feeding 8 sigmas to the 4-step
+ * MiniMaxH3TurboSampler attenuates the generated audio by ~15 dB and strips
+ * ~8 dB of high-frequency detail (dhee-bundle-illustrated-story-h3#10). So 4 is
+ * the floor AND the default — but a 15s four-cut scene with two speakers and
+ * nine plates is not the same problem as an 8s locked single, and the extra
+ * steps are cheap next to a re-render.
+ *
+ * The score is deliberately made of things the scene already declares, so no
+ * new authored field is needed and nothing can disagree with the render:
+ *
+ *   cuts        one shot is a held beat; four cuts is four compositions to resolve
+ *   references  every extra plate is more identity to hold simultaneously
+ *   dialogue    lip-sync and voice are the parts that punish a short schedule
+ *   duration    more frames to keep coherent
+ *
+ * Returns `minSteps` for the simplest scene and `maxSteps` for the busiest, on
+ * discrete tiers (4/6/8/10 by default), so a caller that wants a fixed count
+ * just sets `steps` instead.
+ */
+export const RENDER_COMPLEXITY_LEVELS = ['simple', 'moderate', 'complex', 'extreme'] as const;
+export type RenderComplexity = (typeof RENDER_COMPLEXITY_LEVELS)[number];
+
+export interface SceneComplexityInput {
+  shots?: unknown;
+  references?: unknown;
+  duration?: unknown;
+  /** The authoring model's own judgement of how hard this scene is to RENDER. */
+  renderComplexity?: unknown;
+}
+
+export function stepsForSceneComplexity(
+  scene: SceneComplexityInput,
+  minSteps = 4,
+  maxSteps = 10,
+): { steps: number; score: number; reason: string } {
+  const lo = Math.max(1, Math.round(minSteps));
+  const hi = Math.max(lo, Math.round(maxSteps));
+
+  // Discrete tiers, not a continuous ramp: a sampler schedule is not a dial you
+  // nudge by one, and tiers keep the choice legible in a run log.
+  const tiers: number[] = [];
+  for (let v = lo; v <= hi; v += 2) tiers.push(v);
+  if (tiers[tiers.length - 1] !== hi) tiers.push(hi);
+
+  const shots = Array.isArray(scene.shots) ? scene.shots : [];
+  const refs = Array.isArray(scene.references) ? scene.references : [];
+  const duration = typeof scene.duration === 'number' ? scene.duration : 0;
+  const dialogueLines = shots.reduce((n, s) => {
+    const d = (s as { dialogue?: unknown })?.dialogue;
+    return n + (Array.isArray(d) ? d.length : 0);
+  }, 0);
+
+  const cutScore = Math.min(3, Math.max(0, shots.length - 1));
+  const refScore = refs.length >= 7 ? 3 : refs.length >= 5 ? 2 : refs.length >= 4 ? 1 : 0;
+  const dialogueScore = Math.min(3, dialogueLines);
+  const lengthScore = duration > 12 ? 3 : duration > 10 ? 2 : duration > 8 ? 1 : 0;
+  const score = cutScore + refScore + dialogueScore + lengthScore;
+
+  const band = 13 / tiers.length;
+  const derivedIndex = Math.min(tiers.length - 1, Math.floor(Math.min(score, 12) / band));
+
+  // The AUTHORING MODEL'S judgement wins when it supplied one. It wrote the shot
+  // list, so it knows things the counters above cannot see: how many figures are
+  // moving, whether there is fire and smoke, how fast the motion is, how much
+  // fine texture has to survive being moved. Counting cuts and references is a
+  // proxy for scene SIZE; what costs sampling steps is scene DIFFICULTY, and a
+  // single-cut shot of a horde overrunning a line scores identically to a single
+  // -cut shot of a woman at an anvil under the counters alone.
+  const authored = typeof scene.renderComplexity === 'string'
+    ? scene.renderComplexity.trim().toLowerCase()
+    : undefined;
+  const authoredIndex = authored ? RENDER_COMPLEXITY_LEVELS.indexOf(authored as RenderComplexity) : -1;
+
+  const useAuthored = authoredIndex >= 0;
+  const index = useAuthored
+    ? Math.min(tiers.length - 1, Math.round((authoredIndex / (RENDER_COMPLEXITY_LEVELS.length - 1)) * (tiers.length - 1)))
+    : derivedIndex;
+  const steps = tiers[index]!;
+
+  const counters = `${shots.length} cut(s), ${refs.length} ref(s), ${dialogueLines} line(s), ${duration}s → score ${score}/12`;
+  // Surface BOTH when they disagree, so a model that marks everything "extreme"
+  // to be safe — or misses a genuinely hard scene — is visible in the run log
+  // rather than silently doubling or halving GPU time.
+  const disagree = useAuthored && tiers[derivedIndex] !== steps;
+  const reason = useAuthored
+    ? `authored "${authored}" → ${steps} of [${tiers.join(', ')}]${disagree ? ` (counters suggested ${tiers[derivedIndex]}: ${counters})` : ''}`
+    : `${counters} → ${steps} of [${tiers.join(', ')}]`;
+  return { steps, score, reason };
 }

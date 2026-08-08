@@ -153,10 +153,14 @@ const DIALOGUE_12_WORDS = 'ek do teen char paanch che saat aath nau das gyarah b
 t('the speech floor RAISES a too-short authored duration', () => {
   const withDialogue = { shots: [{ id: 'scene_5_shot_1', scene: 5, dialogue: DIALOGUE_12_WORDS }] };
   const r = resolveSeconds(4, shotsForItem(withDialogue, 'scene_5'), 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
-  // speechSecondsFor(12 words) = 12/2.8 + 1.0 ≈ 5.29s, bigger than the authored 4s.
-  assert.ok(Math.abs(r.speechFloorSec - 5.2857142857142865) < 1e-9);
-  assert.ok(Math.abs(r.seconds - 5.2857142857142865) < 1e-9);
-  assert.match(r.source, /^prompt\+speechFloor\(5\.29s\)$/);
+  // speechSecondsFor(12 words, 1 sentence) = 12/2.8 + 1.0 lead-in + 0.6 tail
+  // ≈ 5.89s, bigger than the authored 4s. The tail margin was added after a
+  // real film clipped its last words: the fixed overhead covered lead-in AND
+  // tail together, and measured lead-in alone is 0.40-1.33s.
+  const expected = 12 / 2.8 + 1.0 + 0.6;
+  assert.ok(Math.abs(r.speechFloorSec - expected) < 1e-9, `got ${r.speechFloorSec}`);
+  assert.ok(Math.abs(r.seconds - expected) < 1e-9);
+  assert.match(r.source, /^prompt\+speechFloor\(5\.89s\)$/);
 });
 t('a longer authored duration is NOT shrunk by a smaller speech floor', () => {
   const withDialogue = { shots: [{ id: 'scene_5_shot_1', scene: 5, dialogue: DIALOGUE_12_WORDS }] };
@@ -176,11 +180,11 @@ t('a dialogue floor past the ceiling clamps to maxSeconds and is reported via sp
   const fiftyWords = Array.from({ length: 50 }, (_, i) => `w${i}`).join(' ');
   const overflow = { shots: [{ id: 'scene_7_shot_1', scene: 7, dialogue: fiftyWords }] };
   const r = resolveSeconds(undefined, shotsForItem(overflow, 'scene_7'), 10, H3_MIN_SECONDS, H3_MAX_SECONDS);
-  // speechSecondsFor(50 words) = 50/2.8 + 1.0 ≈ 18.86s — past the 15s ceiling.
+  // 50/2.8 + 1.0 lead-in + 0.6 tail ≈ 19.46s — well past the 15.08s ceiling.
   assert.equal(r.seconds, H3_MAX_SECONDS);
   assert.equal(r.clamped, true);
   assert.ok(r.speechFloorSec > H3_MAX_SECONDS);
-  assert.match(r.source, /speechFloor\(18\.86s\)/);
+  assert.match(r.source, /speechFloor\(19\.46s\)/);
 });
 
 console.log('planSheetExpansion — contact sheets become separate single-view plates, within 9 slots');

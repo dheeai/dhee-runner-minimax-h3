@@ -137,10 +137,12 @@ test('an acting entry naming an object is rejected, and the message lists only c
   });
 });
 
-test('a character hidden in sceneryIds is rejected', () => {
+test('a character in sceneryIds is background presence, not a rejection', () => {
+  // Superseded: this used to throw. A collective (an advancing rank, a crowd)
+  // is legitimately scenery, and rejecting it killed a real 60s battle render.
   const scene = derivedScene();
   scene.shots[1].sceneryIds = ['maya', 'dock'];
-  assert.throws(() => compile(scene), /"maya" is a character/);
+  assert.doesNotThrow(() => compile(scene));
 });
 
 test('the same id in both acting and sceneryIds is rejected', () => {
@@ -192,4 +194,39 @@ test('legacy shape still rejects a character whose acting entry is missing', () 
   scene.shots[0].subjectIds = ['maya', 'ferry_ticket', 'dock'];
   scene.shots[0].acting = [];
   assert.throws(() => compile(scene), /acting is required for character subject\(s\): maya/);
+});
+
+test('a character filed as scenery is a BACKGROUND PRESENCE, not an error', async () => {
+  // Measured: a horde typed `character` in the bible was filed under sceneryIds
+  // by the scene author — the right reading for an advancing rank a hundred feet
+  // away — and the render was rejected, killing a 60s battle. A collective is not
+  // a performer, so it stays visible and is exempt from the acting requirement.
+  const { validateStructuredScenePerformance } = await import('../dist/officialFormat.js');
+  const scene = derivedScene();
+  scene.references.push({ id: 'horde', type: 'character', appearsAs: 'a rank of skeletons', job: 'the advancing mass' });
+  scene.shots[1].sceneryIds = ['dock', 'horde'];   // visible, but not performing
+  assert.doesNotThrow(() => compileStructuredScenePrompt(scene, {
+    strictPerformance: true, expectedReferenceIds: [...EXPECTED, 'horde'],
+  }));
+  const notes = validateStructuredScenePerformance(scene, [...EXPECTED, 'horde'], true);
+  assert.ok(notes.some((n) => /horde/.test(n) && /background presence/.test(n)), notes.join(' | '));
+});
+
+test('a background character is still visible in the compiled prose', () => {
+  const scene = derivedScene();
+  scene.references.push({ id: 'horde', type: 'character', appearsAs: 'a rank of skeletons', job: 'the advancing mass' });
+  scene.shots[1].sceneryIds = ['dock', 'horde'];
+  const out = compileStructuredScenePrompt(scene, { strictPerformance: true, expectedReferenceIds: [...EXPECTED, 'horde'] });
+  assert.match(out.detailedDescription, /\[Shot 2\][\s\S]*Visible subjects:[^.]*<Subject 4>/);
+});
+
+test('a character in the shot with NO acting and NOT in sceneryIds is still an error', () => {
+  const scene = derivedScene();
+  scene.shots[0].dialogue = [];
+  scene.spokenLines = [];
+  scene.shots[0].subjectIds = ['maya', 'dock'];  // legacy shape, maya performing but no acting
+  scene.shots[0].acting = [];
+  assert.throws(() => compileStructuredScenePrompt(scene, {
+    strictPerformance: true, expectedReferenceIds: EXPECTED,
+  }), /acting is required for character subject\(s\): maya/);
 });
