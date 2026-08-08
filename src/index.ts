@@ -842,6 +842,71 @@ export function shotsForItem(plan: ShotPlan | undefined, itemId: string): ShotRo
  * per-scene; the reference-input collection keys are a fallback for bundles
  * that do not pass the complete plan into the render node.
  */
+/**
+ * Give a section a LOCATION when the planner licensed it none.
+ *
+ * Every scene happens somewhere, and H3 needs a background plate — the bundle
+ * routes exactly one, chosen by `bgTypes: ['location']`. But `section.entities`
+ * is authored per scene, and a model writing a tight close-up ("the flame
+ * passes across") reasonably lists only the people and the prop. The scene then
+ * has no background at all, and the scene author — who can see the prose and
+ * knows the scene is on the steps — cites the location anyway and the run dies:
+ *
+ *   ✗ scene_clip[scene_4]: unknown references[3].id="shiokaze_steps";
+ *     expected IDs: hina, lantern_spirit, oil_lamp
+ *
+ * Relaxing the check would let the scene render with no background. Instead the
+ * location is INHERITED from the nearest preceding section that has one, which
+ * is both what continuity wants and what the prose meant. Falls back to the
+ * next following section, then to the film's only location.
+ *
+ * Deliberately narrow: it fires ONLY when the section licenses no location at
+ * all. A section that names one keeps exactly what it named, so this cannot
+ * smuggle a second background in.
+ */
+function backfillSectionLocation(
+  ctx: RunnerContext,
+  cfg: Record<string, unknown>,
+  plan: ShotPlan | undefined,
+  itemId: string,
+  ids: string[],
+): string[] {
+  const bgTypes = Array.isArray(cfg['bgTypes']) ? (cfg['bgTypes'] as unknown[]).map(String) : ['location'];
+  const refInputs = cfg['referenceInputs'];
+  if (!refInputs || typeof refInputs !== 'object' || Array.isArray(refInputs)) return ids;
+  const knownLocations = new Set<string>();
+  for (const type of bgTypes) {
+    const inputId = (refInputs as Record<string, unknown>)[type];
+    if (typeof inputId !== 'string') continue;
+    const value = ctx.inputs[inputId];
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const id of Object.keys(value as Record<string, unknown>)) knownLocations.add(id);
+    }
+  }
+  if (!knownLocations.size) return ids;
+  if (ids.some((id) => knownLocations.has(id))) return ids;
+
+  const sections = plan?.sections ?? [];
+  const here = sections.findIndex((s) => s?.id === itemId);
+  const locationOf = (i: number): string | undefined => {
+    const raw = sections[i] as { entities?: unknown; references?: unknown } | undefined;
+    const list = raw && (Array.isArray(raw.entities) ? raw.entities : raw.references);
+    if (!Array.isArray(list)) return undefined;
+    for (const v of list) {
+      const id = typeof v === 'string' ? v : undefined;
+      if (id && knownLocations.has(id.trim())) return id.trim();
+    }
+    return undefined;
+  };
+  let inherited: string | undefined;
+  for (let i = here - 1; i >= 0 && !inherited; i -= 1) inherited = locationOf(i);
+  for (let i = here + 1; i < sections.length && !inherited; i += 1) inherited = locationOf(i);
+  if (!inherited && knownLocations.size === 1) [inherited] = [...knownLocations];
+  if (!inherited) return ids;
+  ctx.log(`comfy.minimax_h3_r2v: ${itemId}: no location in this section's entities — inherited '${inherited}' so the scene has a background`);
+  return [...ids, inherited];
+}
+
 function expectedSceneReferenceIds(
   ctx: RunnerContext,
   cfg: Record<string, unknown>,
@@ -859,7 +924,7 @@ function expectedSceneReferenceIds(
       }
       return [];
     }).map((id) => id.trim()).filter(Boolean);
-    return [...new Set(ids)];
+    return [...new Set(backfillSectionLocation(ctx, cfg, plan, itemId, ids))];
   }
 
   const rootValues = plan && (Array.isArray(plan.entities) ? plan.entities : plan.references);

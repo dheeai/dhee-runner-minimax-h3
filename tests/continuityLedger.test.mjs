@@ -282,3 +282,23 @@ test('the first scene of a film gets no arrival directive', () => {
   const text = body(twoHander());   // no previousSectionEntities at all
   assert.ok(!text.includes('not in the room as the scene opens'));
 });
+
+// ── section location backfill ───────────────────────────────────────────────
+// A section whose entities license no location leaves the scene with no
+// background plate, and the scene author cites the location anyway — which
+// killed a real run on `unknown references[3].id="shiokaze_steps"`.
+import { readFileSync as _rf } from 'node:fs';
+const SRC = _rf(new URL('../src/index.ts', import.meta.url), 'utf8');
+
+test('the backfill is narrow: it only fires when NO location is licensed', () => {
+  assert.match(SRC, /if \(ids\.some\(\(id\) => knownLocations\.has\(id\)\)\) return ids;/);
+});
+
+test('the backfill inherits from a neighbouring section, not an arbitrary location', () => {
+  assert.match(SRC, /for \(let i = here - 1; i >= 0 && !inherited; i -= 1\)/);
+  assert.match(SRC, /for \(let i = here \+ 1; i < sections\.length && !inherited; i \+= 1\)/);
+});
+
+test('the backfill is logged, never silent', () => {
+  assert.match(SRC, /no location in this section's entities — inherited/);
+});
