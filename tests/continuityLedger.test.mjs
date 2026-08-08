@@ -167,3 +167,43 @@ test('a legacy string continuationAnchor is now rejected rather than silently em
     /continuationAnchor must be an object when supplied/,
   );
 });
+
+// ── founder rule, measured 2026-08-08 ───────────────────────────────────────
+// A clip with no words must have no score: H3 makes one audio track, and with
+// nothing vocal to anchor, a score request returns voice-shaped gibberish.
+
+test('a scene with no dialogue is forced to N/A score', () => {
+  const { sections } = compileStructuredScenePrompt(
+    scene({ nonDiegeticMusic: 'Low sustained strings, slow, swelling at the end.' }),
+    { expectedReferenceIds: ['sudha', 'rina', 'kitchen'] },
+  );
+  assert.equal(sections.find((s) => s.name === 'non_diegetic_music').body, 'N/A');
+});
+
+test('a scene WITH dialogue keeps its score', () => {
+  const withLine = scene({
+    spokenLines: ['क्या आप जागी हुई हैं?'],
+    nonDiegeticMusic: 'Low sustained strings, slow, swelling at the end.',
+    shots: [{
+      id: 's1', startTime: 0, endTime: 8,
+      composition: 'Medium wide on the kitchen.',
+      acting: [{ subjectId: 'sudha', tactic: 'ask', observableBehavior: 'turns', beatChange: 'none' }],
+      sceneryIds: ['kitchen'],
+      action: 'She speaks.',
+      cameraMotion: 'Static Shot',
+      sound: 'A tubelight hums.',
+      dialogue: [{
+        speakerId: 'S1', subjectId: 'sudha', language: 'Hindi',
+        exactWords: 'क्या आप जागी हुई हैं?', delivery: 'flat',
+        voicePrompt: 'a low flat unhurried chest-register voice',
+      }],
+    }],
+  });
+  const { sections } = compileStructuredScenePrompt(withLine, { expectedReferenceIds: ['sudha', 'rina', 'kitchen'] });
+  assert.match(sections.find((s) => s.name === 'non_diegetic_music').body, /Low sustained strings/);
+});
+
+test('an already-N/A score is left alone', () => {
+  const { sections } = compileStructuredScenePrompt(scene(), { expectedReferenceIds: ['sudha', 'rina', 'kitchen'] });
+  assert.equal(sections.find((s) => s.name === 'non_diegetic_music').body, 'N/A');
+});

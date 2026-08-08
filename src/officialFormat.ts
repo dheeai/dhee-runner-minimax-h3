@@ -996,6 +996,30 @@ export function validateStructuredScenePerformance(
 }
 
 /**
+ * A scene with no words gets NO score (founder rule, measured 2026-08-08).
+ *
+ * H3 synthesises ONE audio track for the whole clip. With no `<d>` anywhere,
+ * the vocal channel has nothing to anchor to, and a `non_diegetic_music`
+ * request comes back as gibberish — sung or muttered voice-shaped noise laid
+ * over the music. It is the same failure mode as describing speech without
+ * supplying the words, arriving from the other direction.
+ *
+ * Coerced here rather than rejected. The defect is mechanical and so is the
+ * fix, and failing the run would cost a whole authoring round-trip to change
+ * one field — the same reasoning that makes `repairH3Prose` a repair and
+ * `auditDialogueIntegrity` a rejection. A wordless scene that wants mood puts
+ * it in `overall_soundscape` as physical sound, or gets scored in the edit.
+ */
+function silenceScoreWithoutDialogue(value: StructuredScenePrompt): string {
+  const music = (value.nonDiegeticMusic ?? '').trim();
+  if (!music || /^n\/?a\.?$/i.test(music)) return 'N/A';
+  const hasDialogue =
+    (value.spokenLines ?? []).some((line) => String(line ?? '').trim()) ||
+    (value.shots ?? []).some((shot) => (shot.dialogue ?? []).some((line) => String(line?.exactWords ?? '').trim()));
+  return hasDialogue ? music : 'N/A';
+}
+
+/**
  * Speech verbs forbidden in an off-stage ledger entry. Deliberately the plain
  * forms only — this is a guard against describing an unvoiced line, not a
  * general prose filter, and a false positive here blocks a legitimate scene.
@@ -1299,7 +1323,7 @@ export function compileStructuredScenePrompt(
     { name: 'retention_analysis', body: subjectSections.retentionAnalysis },
     { name: 'detailed_description', body: detailedDescription },
     { name: 'overall_soundscape', body: value.overallSoundscape },
-    { name: 'non_diegetic_music', body: value.nonDiegeticMusic },
+    { name: 'non_diegetic_music', body: silenceScoreWithoutDialogue(value) },
   ] as CompiledH3Section[];
   return {
     sections,
