@@ -114,7 +114,7 @@ test('an off-screen line compiles and uses the guide\'s exact voiceover phrase',
   scene.shots[0].acting = [];
   scene.shots[0].dialogue[0].offScreen = true;
   const out = compile(scene);
-  assert.match(out.detailedDescription, /\(S1\) says in an off-screen voiceover quietly: <d>/);
+  assert.match(out.detailedDescription, /\(S1\) says in an off-screen voiceover, quietly: <d>/);
   // Maya is not on screen here, so no lips-closed clause is owed.
   assert.doesNotMatch(out.detailedDescription, /lips remain/);
 });
@@ -123,7 +123,7 @@ test('an on-screen speaker voicing over gets the lips-remain-closed statement', 
   const scene = derivedScene();
   scene.shots[0].dialogue[0].offScreen = true; // acting entry retained: she IS visible
   const out = compile(scene);
-  assert.match(out.detailedDescription, /says in an off-screen voiceover quietly: <d>\[English\] Exact words\.<\/d> while their lips remain completely closed\./);
+  assert.match(out.detailedDescription, /says in an off-screen voiceover, quietly: <d>\[English\] Exact words\.<\/d> while their lips remain completely closed\./);
 });
 
 test('an acting entry naming an object is rejected, and the message lists only characters', () => {

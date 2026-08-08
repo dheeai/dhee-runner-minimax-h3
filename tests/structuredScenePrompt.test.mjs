@@ -95,7 +95,7 @@ test('structured scene compiles to canonical H3 sections', () => {
   assert.match(result.sections[3].body, /\[Shot 1\]/);
   assert.match(result.sections[3].body, /\[Shot 2\] At 00:04\.000/);
   assert.match(result.sections[3].body, /<d>\[English\] Exact words\.<\/d>/);
-  assert.match(result.sections[3].body, /Negative directions: no subtitles; no extra people\./);
+  assert.match(result.sections[3].body, /The frame stays free of subtitles and extra people throughout\./);
   assert.equal(result.prompt, [
     'subject_definitions:',
     result.sections[0].body,
@@ -295,7 +295,7 @@ test('strict performance allows an empty voice profile list for a silent scene',
 
 test('behavior-rich performance compiles into observable H3 action prose', () => {
   const result = h3.compileStructuredScenePrompt(sceneWithPerformance(), { strictPerformance: true });
-  assert.match(result.detailedDescription, /Performance objective: Make the witness admit what he saw\./);
+  assert.match(result.detailedDescription, /Physical business: She folds and refolds a wet rope while questioning him\./);
   assert.match(result.detailedDescription, /Tactic: press\. Observable behavior: She counts the witness's breaths/);
   assert.match(result.detailedDescription, /Assessment moment: A brief stillness/);
   assert.match(result.detailedDescription, /Voice identity for <Subject 1>: A woman in her thirties with a warm mid-range voice; measured and clear under pressure\./);

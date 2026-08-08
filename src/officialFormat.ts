@@ -166,6 +166,10 @@ export interface StructuredSceneShot {
   sceneryIds?: string[];
   action: string;
   cameraMotion: CameraMotion;
+  /** Base guide 4.3's second camera dimension. Omit for medium. */
+  cameraAmplitude?: 'small' | 'large';
+  /** Base guide 4.3's third camera dimension. Omit for normal. */
+  cameraSpeed?: 'slow' | 'fast';
   sound: string;
   transition?: string;
   dialogue?: StructuredDialogue[];
@@ -176,6 +180,16 @@ export interface StructuredSceneShot {
 /** The strict intermediate representation authored by the illustrated-story bundle. */
 export interface StructuredScenePrompt {
   spokenLines: string[];
+  /**
+   * One or two sentences of visual style, emitted immediately BEFORE [Shot 1].
+   *
+   * Ref guide 5.2 lists this as a full-reference-mode DIFFERENCE from T2VA: the
+   * style opening goes before the first shot marker, not after it. The schema
+   * had no field for it at all, so the bundle's `art_style` — an input this node
+   * declares — reached the renderer not at all, and the slot the guide reserves
+   * for style was occupied by acting-theory metadata instead.
+   */
+  style?: string;
   summary: string;
   references: StructuredSceneReference[];
   shots: StructuredSceneShot[];
@@ -313,6 +327,10 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
   if (!Array.isArray(rawSpokenLines)) throw new Error('spokenLines must be an array');
   const spokenLines = rawSpokenLines.map((line, index) => structuredText(line, `spokenLines[${index}]`));
 
+  const styleValue = root['style'];
+  if (styleValue !== undefined && (typeof styleValue !== 'string' || !styleValue.trim())) {
+    throw new Error('style must be a non-empty string when supplied');
+  }
   const summary = structuredText(root['summary'], 'summary');
   const overallSoundscape = structuredText(root['overallSoundscape'], 'overallSoundscape');
   const nonDiegeticMusic = structuredText(root['nonDiegeticMusic'], 'nonDiegeticMusic');
@@ -392,6 +410,14 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
     if (!CAMERA_MOTIONS.includes(cameraMotion)) {
       throw new Error(`${path}.cameraMotion must use a controlled H3 camera vocabulary term`);
     }
+    const amplitudeValue = shot['cameraAmplitude'];
+    if (amplitudeValue !== undefined && amplitudeValue !== 'small' && amplitudeValue !== 'large') {
+      throw new Error(`${path}.cameraAmplitude must be 'small' or 'large' when supplied`);
+    }
+    const speedValue = shot['cameraSpeed'];
+    if (speedValue !== undefined && speedValue !== 'slow' && speedValue !== 'fast') {
+      throw new Error(`${path}.cameraSpeed must be 'slow' or 'fast' when supplied`);
+    }
     const sound = structuredText(shot['sound'], `${path}.sound`);
     const subjectIds = resolveShotSubjectIds(shot, path);
     for (const idValue of subjectIds) {
@@ -457,6 +483,8 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
       subjectIds,
       action,
       cameraMotion,
+      cameraAmplitude: amplitudeValue as 'small' | 'large' | undefined,
+      cameraSpeed: speedValue as 'slow' | 'fast' | undefined,
       sound,
       transition: transitionValue as string | undefined,
       dialogue,
@@ -471,6 +499,7 @@ function validateStructuredScene(scene: unknown): StructuredScenePrompt {
   }
   return {
     spokenLines,
+    style: styleValue as string | undefined,
     summary,
     references,
     shots,
@@ -756,18 +785,138 @@ function compileStructuredActing(
   ].filter(Boolean).join(' ');
 }
 
+/**
+ * Lower-case a leading capital and drop a trailing period, so an authored
+ * fragment drops cleanly into a sentence frame.
+ *
+ * The frames read `<Subject N> is ___ in <Picture N>.` and `Follow it for ___.`,
+ * but the fields feeding them are described as standalone answers, so models
+ * write "Tall, narrow figure …" and "The defiant smith …". Measured on one
+ * four-reference scene: 24 double periods, 3 broken `is <Capital>` frames, 4
+ * `Follow it for <Capital>` — in EVERY reference of EVERY scene. Constraining
+ * the model instead was tried and measured 5-10x completion tokens plus a retry
+ * cascade, so this is normalised here where it is free.
+ *
+ * An ALL-CAPS or acronym-initial fragment is left alone (`ID reference shoot`),
+ * since lower-casing it would be wrong.
+ */
+function inlineFragment(text: string): string {
+  const trimmed = text.trim().replace(/\.+$/, '');
+  if (!trimmed) return '';
+  const isAcronymStart = /^[A-Z]{2,}/.test(trimmed);
+  return isAcronymStart ? trimmed : trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+}
+
+/** Collapse `..` left over from a fragment that already ended in a period. */
+function tidyPeriods(text: string): string {
+  return text.replace(/\.{2,}(?!\.)/g, '.').replace(/\.\s*\./g, '.');
+}
+
+/**
+ * Only the FILMABLE half of `performance` reaches H3.
+ *
+ * `objective`, `obstacle`, `stakes`, `subtext` and `statusDynamic` are by
+ * construction not visible or audible — they are why the character acts, not
+ * what the camera sees — and the ref guide is explicit that every detail should
+ * correspond to something visible or audible, and that the description must not
+ * decay into plot summary. Measured on a real film: this block was 121 words of
+ * a 332-word description, sitting in the highest-leverage position in the
+ * prompt (before [Shot 1]) where the guide puts the STYLE sentence.
+ *
+ * They still earn their place in the schema — they are what makes the per-shot
+ * `acting` adaptations coherent — they just are not sent to the renderer.
+ */
 function compileStructuredPerformance(performance: StructuredScenePerformance): string {
   return [
-    `Performance objective: ${performance.objective}.`,
-    `Obstacle: ${performance.obstacle}.`,
-    `Stakes: ${performance.stakes}.`,
     `Physical business: ${performance.physicalBusiness}.`,
     `Body state: ${performance.bodyState}.`,
     `Eye life: ${performance.eyeLife}.`,
-    performance.subtext ? `Subtext: ${performance.subtext}.` : '',
-    performance.statusDynamic ? `Status dynamic: ${performance.statusDynamic}.` : '',
     performance.proxemics ? `Proxemics: ${performance.proxemics}.` : '',
-  ].filter(Boolean).join(' ');
+  ].filter(Boolean).map((s) => tidyPeriods(s)).join(' ');
+}
+
+/**
+ * Camera motion as natural English inside the shot, not a stacked label.
+ *
+ * Base guide 4.3: "Camera motion should be written as a natural English action
+ * within the shot, rather than stacked as separate labels at the end of a
+ * sentence", and our own measurements note that "in a static medium shot" does
+ * not register as `Static Shot`. The compiler emitted `Camera: Push In.` —
+ * exactly the forbidden form — in every shot of every scene.
+ *
+ * The controlled term is preserved verbatim inside the sentence, which is what
+ * H3 is trained on; only the framing around it changes.
+ */
+const CAMERA_PHRASING: Record<CameraMotion, string> = {
+  'Zoom In': 'The camera performs a Zoom In',
+  'Zoom Out': 'The camera performs a Zoom Out',
+  'Push In': 'The camera performs a Push In',
+  'Pull Out': 'The camera performs a Pull Out',
+  'Pan Left': 'The camera performs a Pan Left',
+  'Pan Right': 'The camera performs a Pan Right',
+  'Truck Left': 'The camera performs a Truck Left',
+  'Truck Right': 'The camera performs a Truck Right',
+  'Tilt Up': 'The camera performs a Tilt Up',
+  'Tilt Down': 'The camera performs a Tilt Down',
+  'Pedestal Up': 'The camera performs a Pedestal Up',
+  'Pedestal Down': 'The camera performs a Pedestal Down',
+  'Arc Shot': 'The camera holds an Arc Shot around the subject',
+  'Tracking Shot': 'The camera holds a Tracking Shot following the subject',
+  'Static Shot': 'The camera holds a Static Shot',
+  'Shake Slightly': 'The camera holds the frame and Shake Slightly',
+  'Shake Strongly': 'The camera holds the frame and Shake Strongly',
+  'POV': 'The shot is a POV from the subject',
+  'Roll Clockwise': 'The camera performs a Roll Clockwise',
+  'Roll Counterclockwise': 'The camera performs a Roll Counterclockwise',
+};
+
+function compileCameraMotion(shot: StructuredSceneShot): string {
+  const base = CAMERA_PHRASING[shot.cameraMotion] ?? `The camera holds a ${shot.cameraMotion}`;
+  const amplitude = shot.cameraAmplitude ? ` with ${shot.cameraAmplitude} amplitude` : '';
+  const speed = shot.cameraSpeed ? ` at ${shot.cameraSpeed} speed` : '';
+  return `${base}${amplitude}${speed}.`;
+}
+
+/**
+ * A cut marker that grammatically continues `At MM:SS.mmm, `.
+ *
+ * The authored `transition` is a standalone sentence, so it arrives capitalised
+ * and often without a documented cut verb — producing `At 00:04.000, The cut
+ * reveals …`. Measured on real output: capitalised mid-sentence in most scenes,
+ * and missing the cut phrase entirely in several. A `pattern` was tried and
+ * measured a 5-10x token blow-up, so it is repaired here instead.
+ */
+const CUT_PHRASE = /^the (shot|camera) (cuts?|transitions?|changes?|switches)\b/i;
+
+function compileCutMarker(index: number, shot: StructuredSceneShot, time: string): string {
+  const authored = inlineFragment(shot.transition ?? '');
+  if (!authored) return `[Shot ${index + 1}] At ${time}, the shot cuts to a new view.`;
+  if (CUT_PHRASE.test(authored)) return `[Shot ${index + 1}] At ${time}, ${authored}.`;
+  // The author described what the cut REVEALS but not that it is a cut; supply
+  // the documented verb and keep their reveal as the clause it introduces.
+  return `[Shot ${index + 1}] At ${time}, the shot cuts to a new view — ${authored}.`;
+}
+
+/**
+ * Negatives as statements of ABSENCE rather than a semicolon list of nouns.
+ *
+ * The ref2va graph is guidance-distilled and has no negative-conditioning input,
+ * so whatever is written here is read as positive prose. `Negative directions:
+ * subtitles; extra people; Vashti flinching.` therefore hands H3 the word
+ * "subtitles" and the image of "Vashti flinching" as things to render. Measured
+ * across models: 6/6 negatives came out as bare nouns on some runs and as
+ * absence phrases on others, so the phrasing cannot be left to the author.
+ */
+function compileNegatives(negatives: string[]): string {
+  const items = negatives
+    .map((n) => inlineFragment(n))
+    .filter(Boolean)
+    .map((n) => n.replace(/^(no|not|never|avoid|without)\s+/i, ''));
+  if (!items.length) return '';
+  const list = items.length === 1
+    ? items[0]!
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]!}`;
+  return tidyPeriods(`The frame stays free of ${list} throughout.`);
 }
 
 function compileStructuredDialogue(
@@ -778,12 +927,20 @@ function compileStructuredDialogue(
   const subjectIndex = subjectIndexById.get(line.subjectId);
   if (!subjectIndex) throw new Error(`dialogue subject ${line.subjectId} is not in references`);
   const tag = `<d>[${line.language}] ${line.exactWords}</d>`;
+  // `says ${delivery}` needs an adverbial. Models supply bare adjectives
+  // ("defiant, gritty"), which reads as `says defiant, gritty:`. Adjective-only
+  // deliveries are wrapped; anything already adverbial ("quietly", "with a
+  // strained breath", "in an even tone") is left untouched.
+  const d = line.delivery.trim().replace(/^,\s*/, '');
+  const adverbial = /\b\w+ly\b|^(with|in|through|under|as|while|after|before|at)\b/i.test(d)
+    ? d
+    : `in a ${d} tone`;
   if (!line.offScreen) {
-    return `<Subject ${subjectIndex}> (${line.speakerId}) says ${line.delivery}: ${tag}`;
+    return `<Subject ${subjectIndex}> (${line.speakerId}) says ${adverbial}: ${tag}`;
   }
   // Base guide 4.4: voiceover uses this EXACT phrase, and when the speaker is
   // also on screen the lips-closed statement follows immediately after the tag.
-  const lead = `<Subject ${subjectIndex}> (${line.speakerId}) says in an off-screen voiceover ${line.delivery}: ${tag}`;
+  const lead = `<Subject ${subjectIndex}> (${line.speakerId}) says in an off-screen voiceover, ${adverbial}: ${tag}`;
   return visibleInShot ? `${lead} while their lips remain completely closed.` : lead;
 }
 
@@ -797,7 +954,17 @@ export function compileStructuredScenePrompt(
   }
   const value = validateStructuredScene(scene);
   const subjectIndexById = new Map(value.references.map((reference, index) => [reference.id, index + 1]));
-  const subjectSections = buildSubjectSections(value.references);
+  const shotsBySubjectIndex = new Map<number, number[]>();
+  value.shots.forEach((shot, shotIdx) => {
+    for (const id of shot.subjectIds) {
+      const n = subjectIndexById.get(id);
+      if (!n) continue;
+      const list = shotsBySubjectIndex.get(n) ?? [];
+      if (!list.includes(shotIdx + 1)) list.push(shotIdx + 1);
+      shotsBySubjectIndex.set(n, list);
+    }
+  });
+  const subjectSections = buildSubjectSections(value.references, shotsBySubjectIndex);
   // Voice identity: prefer the per-line `voicePrompt` (new shape), falling back
   // to the scene-level list (legacy). First occurrence per subject wins, which
   // is also the only one emitted.
@@ -821,7 +988,7 @@ export function compileStructuredScenePrompt(
   const shotDescription = value.shots.map((shot, index) => {
     const marker = index === 0
       ? '[Shot 1]'
-      : `[Shot ${index + 1}] At ${formatStructuredTime(shot.startTime)}, ${shot.transition ?? 'the shot cuts to a new view.'}`;
+      : compileCutMarker(index, shot, formatStructuredTime(shot.startTime));
     const visibleSubjects = shot.subjectIds
       .map((subjectId) => `<Subject ${subjectIndexById.get(subjectId)!}>`)
       .join(', ');
@@ -850,20 +1017,25 @@ export function compileStructuredScenePrompt(
       shot.composition,
       `Visible subjects: ${visibleSubjects}.`,
       `Action: ${shot.action}`,
-      `Camera: ${shot.cameraMotion}.`,
+      compileCameraMotion(shot),
       `Sound: ${shot.sound}.`,
       acting,
       dialogue,
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean).map((part) => tidyPeriods(part)).join(' ');
   }).join('\n\n');
   const performance = options.strictPerformance && value.performance
     ? compileStructuredPerformance(value.performance)
     : '';
   const trailer = [
-    value.continuationAnchor ? `Continuation anchor: ${value.continuationAnchor}` : '',
-    value.negatives.length ? `Negative directions: ${value.negatives.join('; ')}.` : '',
+    value.continuationAnchor ? tidyPeriods(`Continuation anchor: ${value.continuationAnchor}.`) : '',
+    compileNegatives(value.negatives),
   ].filter(Boolean).join('\n');
-  const detailedDescription = [performance, shotDescription, trailer].filter(Boolean).join('\n\n');
+  // Ref guide 5.2: in full-reference mode the style opening comes BEFORE the
+  // first shot marker. It leads the description; the filmable half of
+  // `performance` follows it, and the non-filmable half is not emitted at all.
+  const styleOpening = value.style ? tidyPeriods(value.style.trim().replace(/\.*$/, '.')) : '';
+  const detailedDescription = [styleOpening, performance, shotDescription, trailer]
+    .filter(Boolean).join('\n\n');
 
   const sections = [
     { name: 'subject_definitions', body: subjectSections.subjectDefinitions },
@@ -897,7 +1069,10 @@ export function compileStructuredScenePrompt(
  * wanting a looser relationship states it per reference rather than having this
  * infer one.
  */
-export function buildSubjectSections(refs: SubjectRef[]): {
+export function buildSubjectSections(
+  refs: SubjectRef[],
+  shotsBySubjectIndex?: Map<number, number[]>,
+): {
   subjectDefinitions: string;
   retentionAnalysis: string;
 } {
@@ -905,11 +1080,16 @@ export function buildSubjectSections(refs: SubjectRef[]): {
   const rets: string[] = [];
   refs.forEach((r, i) => {
     const n = i + 1;
-    const what = (r.appearsAs ?? '').trim() || 'the referenced subject';
-    const job = (r.job ?? '').trim();
+    const what = inlineFragment(r.appearsAs ?? '') || 'the referenced subject';
+    const job = inlineFragment(r.job ?? '');
     const marker: RetentionMarker = r.retention ?? 'fully_preserved';
-    defs.push(`<Subject ${n}> is ${what} in <Picture ${n}>.${job ? ` Follow it for ${job}.` : ''}`);
-    rets.push(`<Subject ${n}>: ${marker} - ${job || `${what} is retained exactly as shown`}.`);
+    defs.push(tidyPeriods(`<Subject ${n}> is ${what} in <Picture ${n}>.${job ? ` Follow it for ${job}.` : ''}`));
+    // Ref guide 4.1 shows the shot list inline: `<Subject 1> (appears in
+    // [Shot 1], [Shot 3]): fully_preserved - …`. The data is already in hand
+    // from each shot's subject list, and it was simply being dropped.
+    const shots = shotsBySubjectIndex?.get(n) ?? [];
+    const where = shots.length ? ` (appears in ${shots.map((x) => `[Shot ${x}]`).join(', ')})` : '';
+    rets.push(tidyPeriods(`<Subject ${n}>${where}: ${marker} - ${job || `${what} is retained exactly as shown`}.`));
   });
   return { subjectDefinitions: defs.join('\n'), retentionAnalysis: rets.join('\n') };
 }
