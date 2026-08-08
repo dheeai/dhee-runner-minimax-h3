@@ -25,8 +25,13 @@ mechanical half so a bundle only has to write prose.
 | **5–15s, on the 17k+5 frame grid.** | `snapH3Frames()`. Confirmed against the node's own schema: `length` is `min 5, max 3600, step 17`, tooltip *"124 = ~5s, trained range is ~124-362"*. |
 | **Up to 9 reference images.** | `routeRefs()`, cap `H3_MAX_REFS = 9` (MSR's is 5). |
 | **Native geometry 768 short edge, capped 768×1344.** | Defaults `width: 1344, height: 768`, snapped to /32 — matching the node's own defaults. |
-| **`res_multistep` + `beta`/`normal` over `simple` for reference-heavy prompts.** | Config defaults `samplerName: res_multistep`, `scheduler: beta`. |
+| **Founder-tested fast compute recipe.** | The canonical graph uses the pruned INT8 model, `PathchSageAttentionKJ`, `MiniMaxH3Cache`, `res_multistep` and `simple`. The runner defaults to `scheduler: simple` and preserves older EasyCache workflows. |
 | **~7,000-character prompt window.** | `composePrompt()` trims the *prose* tail if needed and never the binding clause. |
+
+The runner assigns the finished prompt directly to
+`MiniMaxH3ReferenceToVideo.inputs.prompt` after loading the graph. This is
+deliberate: an exported workflow containing literal example copy cannot bypass
+dynamic prompt injection merely because it omitted the `__POS__` placeholder.
 
 ## The one structural assumption, and its proof
 
@@ -73,7 +78,10 @@ Required: `outputPath`, `workflowPath`. Everything else has a working default.
     "seconds": 12, "minSeconds": 5, "maxSeconds": 15, "fps": 24,
 
     "width": 1344, "height": 768, "refImageSize": "match",
-    "steps": 20, "samplerName": "res_multistep", "scheduler": "beta", "seed": 42,
+    "steps": 20, "samplerName": "res_multistep", "scheduler": "simple", "seed": 42,
+    "cache": true,
+    "cacheThreshold": 0.03, "cacheStart": 0.15,
+    "cacheEnd": 0.9, "cacheMaxSteps": 1,
     "padStart": 0, "padEnd": 0, "timeoutMinutes": 45
   }
 }
@@ -87,6 +95,20 @@ auditing and before the Comfy workflow is built. `dialogueLanguageInput` names
 the project input supplying `Language`; `dialogueLanguage` is a literal fallback.
 This closes the JSON-schema gap where an author can emit the exact line in one
 field yet fail to duplicate it into the prose the renderer consumes.
+
+### Cache compatibility
+
+The canonical graph contains `MiniMaxH3Cache`. Its node schema intentionally
+spells the threshold input `resuse_threshold`; the runner preserves that exact
+spelling. `cacheThreshold`, `cacheStart`, `cacheEnd` and `cacheMaxSteps` override
+`resuse_threshold`, `start_percent`, `end_percent` and `max_steps` respectively.
+Set `cache: false` to remove the cache and rewire each downstream model consumer
+to the cache's upstream model. The upstream `PathchSageAttentionKJ` node is left
+unchanged.
+
+Older graphs containing `EasyCache` remain supported. The legacy
+`easyCache`, `easyCacheThreshold`, `easyCacheStart`, `easyCacheEnd` and
+`easyCacheMaxSteps` config keys remain aliases for the neutral `cache*` controls.
 
 ### Duration precedence
 
