@@ -1,6 +1,6 @@
 {
   "name": "dhee-runner-minimax-h3",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "description": "MiniMax H3 (Hailuo 03) Reference-to-Video runner for Dhee: comfy.minimax_h3_r2v renders ONE multi-cut clip of up to 15s with native stereo audio from up to 9 reference plates, on a local ComfyUI. Pure TS + ffmpeg; the graph lives in the bundle.",
   "type": "module",
   "license": "Apache-2.0",

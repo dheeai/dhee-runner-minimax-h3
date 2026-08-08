@@ -302,3 +302,28 @@ test('the backfill inherits from a neighbouring section, not an arbitrary locati
 test('the backfill is logged, never silent', () => {
   assert.match(SRC, /no location in this section's entities — inherited/);
 });
+
+// ── off-screen speakers need no plate ───────────────────────────────────────
+import { validateStructuredSceneReferences } from '../dist/index.js';
+
+const withOffScreenLine = (offScreen) => ({
+  references: [{ id: 'sereth_vale', type: 'character' }, { id: 'deep_quarries', type: 'location' }],
+  shots: [{
+    id: 's1', acting: [{ subjectId: 'sereth_vale' }], sceneryIds: ['deep_quarries'],
+    dialogue: [{ speakerId: 'S1', subjectId: 'ash_sworn_captain', exactWords: 'Sereth.', offScreen }],
+  }],
+});
+
+test('an off-screen voice may come from someone with no plate', () => {
+  // Killed a finished 8-scene film on its LAST scene before this.
+  assert.doesNotThrow(() => validateStructuredSceneReferences(
+    withOffScreenLine(true), ['sereth_vale', 'deep_quarries'],
+  ));
+});
+
+test('an ON-screen speaker still must be a licensed reference', () => {
+  assert.throws(
+    () => validateStructuredSceneReferences(withOffScreenLine(false), ['sereth_vale', 'deep_quarries']),
+    /unknown shots\[0\]\.dialogue\[0\]\.subjectId="ash_sworn_captain"/,
+  );
+});

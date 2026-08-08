@@ -637,9 +637,22 @@ export function validateStructuredSceneReferences(scene: unknown, expectedIds: r
       const dialogue = shotRecord['dialogue'];
       if (Array.isArray(dialogue)) {
         dialogue.forEach((line, lineIndex) => {
-          if (line && typeof line === 'object' && !Array.isArray(line)) {
-            add(`shots[${shotIndex}].dialogue[${lineIndex}].subjectId`, (line as Record<string, unknown>)['subjectId']);
-          }
+          if (!line || typeof line !== 'object' || Array.isArray(line)) return;
+          // An OFF-SCREEN voice has no visual, so it needs no reference plate —
+          // that is the entire point of `offScreen: true`, and the acting checks
+          // already honour it. Demanding the speaker be a licensed visible
+          // reference killed a finished film on its LAST scene:
+          //
+          //   ✗ scene_clip[scene_8]: unknown
+          //     shots[2].dialogue[0].subjectId="ash_sworn_captain";
+          //     expected IDs: sereth_vale, kael, deep_quarries, sereth_sword
+          //
+          // — a single word ("Sereth.") called from off screen by a pursuer who
+          // is deliberately not in the room. `auditDialogueIntegrity` still
+          // requires the words and the vocal identity, so an off-screen line
+          // cannot become voice-shaped noise; it simply needs no plate.
+          if ((line as Record<string, unknown>)['offScreen'] === true) return;
+          add(`shots[${shotIndex}].dialogue[${lineIndex}].subjectId`, (line as Record<string, unknown>)['subjectId']);
         });
       }
     });
