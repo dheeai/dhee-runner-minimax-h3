@@ -380,8 +380,22 @@ export function resolveGeometry(
   cfgHeight: number | undefined,
 ): { width: number; height: number; source: string } {
   const snap = (x: number) => Math.max(32, Math.round(x / 32) * 32);
-  if (typeof resolutionValue === 'string' && resolutionValue.trim()) {
-    const v = resolutionValue.trim().toLowerCase();
+  // `pnpm dhee new --resolution 540` and the desktop's own resolution control
+  // both write a NUMBER (540), not the preset string ('540p') this used to
+  // require. A number failed the typeof check, fell through to the node's
+  // config, and the operator's choice was silently discarded — measured on a
+  // real project: project.json said 540 and every clip rendered at 1344x768,
+  // ~2.4x the pixels and cost, with nothing in the log saying so. Worse, that
+  // is also the geometry that took ComfyUI down on the heaviest clip of the
+  // film. Coerce a bare number (or a bare numeric string) to its preset by
+  // SHORT EDGE, which is how every one of these presets is named.
+  const coerced = typeof resolutionValue === 'number' && Number.isFinite(resolutionValue)
+    ? `${Math.round(resolutionValue)}p`
+    : typeof resolutionValue === 'string' && /^\s*\d{3,4}\s*$/.test(resolutionValue)
+      ? `${resolutionValue.trim()}p`
+      : resolutionValue;
+  if (typeof coerced === 'string' && coerced.trim()) {
+    const v = coerced.trim().toLowerCase();
     const preset = RESOLUTION_PRESETS[v];
     if (preset) return { width: preset[0], height: preset[1], source: `resolution:${v}` };
     const m = /^(\d{2,5})\s*[x×]\s*(\d{2,5})$/.exec(v);

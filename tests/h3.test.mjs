@@ -377,3 +377,23 @@ t('EasyCache compatibility is preserved while sharing the cache controls', () =>
 });
 
 console.log(`\n${pass} assertions passed.`);
+
+// ── resolution coercion ────────────────────────────────────────────────────
+// `dhee new --resolution 540` and the desktop both write a NUMBER, not '540p'.
+{
+  const { resolveGeometry } = await import('../dist/index.js');
+  const cases = [
+    [540, 960, 544, 'a bare number picks the preset by short edge'],
+    ['540', 960, 544, 'a bare numeric string does too'],
+    ['540p', 960, 544, 'the preset string still works'],
+    ['960x544', 960, 544, 'an explicit geometry still works'],
+    [undefined, 1344, 768, 'nothing falls through to config'],
+    ['nonsense', 1344, 768, 'a typo falls through rather than failing the render'],
+  ];
+  for (const [value, w, h, why] of cases) {
+    const got = resolveGeometry(value, 1344, 768);
+    assert.equal(got.width, w, `${why} (width)`);
+    assert.equal(got.height, h, `${why} (height)`);
+    console.log(`  ok resolution ${JSON.stringify(value)} -> ${got.width}x${got.height} (${got.source})`);
+  }
+}
