@@ -197,3 +197,105 @@ console.log(`\n${pass} assertions passed.`);
   assert.equal(withFrom.continuationFrom.characterPositions[0].subjectId, 'someone_else');
   console.log('  ok continuationFrom is left alone');
 }
+
+// ── reference dedupe (#19) ──────────────────────────────────────────────────
+{
+  const { dedupeSceneReferences, normalizeIndexedRefs } = await import('../dist/officialFormat.js');
+
+  // Measured shape: scene_1 padded 9 slots for 2 subjects, alternating.
+  const padded = {
+    references: [
+      { id: 'narrator', type: 'character', appearsAs: 'a' }, // 0 survivor
+      { id: 'keerti', type: 'character', appearsAs: 'b' },    // 1 survivor
+      { id: 'narrator', type: 'character', appearsAs: 'a2' }, // 2 -> 0
+      { id: 'keerti', type: 'character', appearsAs: 'b2' },   // 3 -> 1
+      { id: 'narrator', type: 'character', appearsAs: 'a3' }, // 4 -> 0
+    ],
+    shots: [{
+      acting: [{ subjectRef: 0 }, { subjectRef: 3 }],
+      sceneryRefs: [4],
+      dialogue: [{ subjectRef: 2, exactWords: 'x' }],
+    }],
+    continuationAnchor: { characterPositions: [{ subjectRef: 3, where: 'left' }] },
+  };
+  const dedupeNotes = dedupeSceneReferences(padded);
+  assert.equal(padded.references.length, 2, 'padded duplicates must collapse to the distinct set');
+  assert.deepEqual(padded.references.map((r) => r.id), ['narrator', 'keerti']);
+  assert.ok(dedupeNotes.length >= 1, 'must report what collapsed');
+  assert.match(dedupeNotes.join(' '), /narrator.*collapsed to slot 0/);
+  assert.match(dedupeNotes.join(' '), /keerti.*collapsed to slot 1/);
+  // Every raw index pointer must be REMAPPED to the survivor's new position,
+  // not left dangling at a position that no longer exists.
+  assert.equal(padded.shots[0].acting[0].subjectRef, 0);
+  assert.equal(padded.shots[0].acting[1].subjectRef, 1, 'old index 3 (keerti duplicate) must remap to keerti\'s new slot 1');
+  assert.equal(padded.shots[0].sceneryRefs[0], 0, 'old index 4 (narrator duplicate) must remap to narrator\'s new slot 0');
+  assert.equal(padded.shots[0].dialogue[0].subjectRef, 0, 'old index 2 (narrator duplicate) must remap to narrator\'s new slot 0');
+  assert.equal(padded.continuationAnchor.characterPositions[0].subjectRef, 1);
+  // The remapped indexes must still resolve correctly through normalizeIndexedRefs.
+  normalizeIndexedRefs(padded);
+  assert.equal(padded.shots[0].acting[1].subjectId, 'keerti');
+  assert.equal(padded.shots[0].dialogue[0].subjectId, 'narrator');
+  console.log('  ok padded references collapse to the distinct set with every pointer remapped');
+
+  // A scene with no duplicates is left untouched — no notes, no rewrite.
+  const clean = { references: [{ id: 'a' }, { id: 'b' }], shots: [{ acting: [{ subjectRef: 1 }] }] };
+  const cleanRefsBefore = clean.references;
+  assert.deepEqual(dedupeSceneReferences(clean), []);
+  assert.equal(clean.references, cleanRefsBefore, 'must not reallocate the array when nothing collapsed');
+  assert.equal(clean.shots[0].acting[0].subjectRef, 1);
+  console.log('  ok a scene with distinct ids is left untouched');
+}
+
+// ── voice-profile enforcement (#10) ─────────────────────────────────────────
+{
+  const { applyVoiceProfileOverrides } = await import('../dist/officialFormat.js');
+
+  // Measured shape: S1 (the father) carries the wrong character's voice on
+  // some lines and an appearance description (not a voice) on another.
+  const scene = {
+    shots: [
+      {
+        dialogue: [
+          { subjectId: 'father', speakerId: 'S1', voicePrompt: 'Mid-20s Indian female, warm and melodic timbre.' }, // wrong character's voice
+          { subjectId: 'father', speakerId: 'S1', voicePrompt: 'Middle-aged/elderly male, frail, pale, graying/balding.' }, // appearance, not voice
+          { subjectId: 'father', speakerId: 'S1', voicePrompt: 'Middle-aged male, frail but calm, warm and steady tone.' }, // correct profile, verbatim
+        ],
+      },
+    ],
+  };
+  const profiles = { father: 'Middle-aged male, frail but calm, warm and steady tone.' };
+  const notes = applyVoiceProfileOverrides(scene, profiles);
+  assert.equal(scene.shots[0].dialogue[0].voicePrompt, profiles.father, 'the wrong-character voice must be overwritten with the canonical profile');
+  assert.equal(scene.shots[0].dialogue[1].voicePrompt, profiles.father, 'the appearance description must be overwritten with the canonical profile');
+  assert.equal(scene.shots[0].dialogue[2].voicePrompt, profiles.father, 'the already-correct line is left byte-identical');
+  assert.equal(notes.filter((n) => n.includes('did not match')).length, 2, 'exactly the two mismatched lines are reported, not the correct one');
+  console.log('  ok a wrong or appearance-only voicePrompt is repaired from character_acting_profile, logged, not thrown');
+
+  // No profile available (e.g. a genuinely unplated off-screen speaker in a
+  // bundle that still allows one): a string with no vocal descriptor is
+  // flagged, a real voice description is left alone and unflagged.
+  const noProfile = {
+    shots: [{ dialogue: [
+      { subjectId: 'ghost_voice', speakerId: 'S2', voicePrompt: 'pale, graying/balding' },
+      { subjectId: 'ghost_voice2', speakerId: 'S3', voicePrompt: 'A gravelly, low baritone with a slow, deliberate pace.' },
+    ] }],
+  };
+  const notes2 = applyVoiceProfileOverrides(noProfile, undefined);
+  assert.equal(noProfile.shots[0].dialogue[0].voicePrompt, 'pale, graying/balding', 'nothing to repair FROM, so the string is left as-is');
+  assert.ok(notes2.some((n) => n.includes('no vocal descriptor')), 'an appearance-shaped string with no profile to fix it from is still flagged');
+  assert.ok(!notes2.some((n) => n.includes('ghost_voice2')), 'a real vocal description is not flagged');
+  console.log('  ok an appearance-shaped voicePrompt with no profile to repair from is flagged, not silently accepted');
+
+  // Same speakerId, two different final voices in one scene — a fixed voice
+  // must stay fixed. (Can only happen when no profile exists to force them
+  // identical, e.g. two different subjects sharing a speakerId by author error.)
+  const splitIdentity = {
+    shots: [{ dialogue: [
+      { subjectId: 'x', speakerId: 'S1', voicePrompt: 'A deep resonant bass.' },
+      { subjectId: 'x', speakerId: 'S1', voicePrompt: 'A high melodic soprano.' },
+    ] }],
+  };
+  const notes3 = applyVoiceProfileOverrides(splitIdentity, undefined);
+  assert.ok(notes3.some((n) => n.includes('two different voice identities')), 'one speakerId drifting to two voices in one scene must be reported');
+  console.log('  ok one speakerId carrying two voice identities in a scene is reported');
+}

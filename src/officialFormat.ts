@@ -2030,6 +2030,119 @@ export function stepsForSceneComplexity(
 // ══════════════════════════════════════════════════════════════════════════
 
 /**
+ * Collapse duplicate `references[]` ids to their first occurrence, and remap
+ * every raw index pointer (`acting[].subjectRef`, `dialogue[].subjectRef`,
+ * `sceneryRefs[]`, `continuationAnchor.characterPositions[].subjectRef`) from
+ * its old position to the survivor's new position.
+ *
+ * WHY this exists. Nothing bounds `references[]` ids to be distinct — not the
+ * schema (`uniqueItems` cannot help; padded entries differ in `appearsAs`), not
+ * the prompt, not the runner — and `maxItems: 9` reads to a model as a quota to
+ * fill. Measured: a 2-subject scene padded to 9 slots by repeating the same two
+ * ids. That is not just wasted budget: since v0.35.0 shots address references
+ * by POSITION, a duplicated array makes two different indexes name the SAME
+ * person, which is the exact contradictory-<Subject N>-numbering failure this
+ * indexed format exists to prevent.
+ *
+ * WHY it runs BEFORE `normalizeIndexedRefs`, deliberately. `normalizeIndexedRefs`
+ * resolves each raw index against `references[]` bounds-checked to THAT array's
+ * length, and `compileStructuredScenePrompt` separately hard-fails the instant
+ * it sees two references sharing an id (`references[N].id duplicates X` — see
+ * `validateStructuredScene`). Running dedupe first means both of those always
+ * see the clean, distinct-id array they already assume: `normalizeIndexedRefs`
+ * never has to reconcile a duplicate-aware bounds check, and the compiler's own
+ * duplicate guard never fires on a padded-but-otherwise-well-formed scene.
+ * Running it AFTER would require the same index-remap logic anyway (raw
+ * `subjectRef`/`sceneryRefs` ints are still the fields on disk until
+ * `normalizeIndexedRefs` converts them), plus a second pass to satisfy the
+ * compiler's duplicate check — doing it first is strictly less work and keeps
+ * the index-resolution invariant ("every index is in range AND names something
+ * declared exactly once") true for every caller downstream, not just the last
+ * one in the pipeline.
+ */
+export function dedupeSceneReferences(scene: unknown): string[] {
+  const notes: string[] = [];
+  if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return notes;
+  const root = scene as Record<string, unknown>;
+  const refs = root['references'];
+  if (!Array.isArray(refs) || refs.length < 2) return notes;
+
+  const survivorIndexById = new Map<string, number>();
+  const oldToNew: number[] = [];
+  const deduped: unknown[] = [];
+  const allOldSlotsById = new Map<string, number[]>();
+
+  refs.forEach((ref, oldIndex) => {
+    const id = ref && typeof ref === 'object' && !Array.isArray(ref) && typeof (ref as Record<string, unknown>)['id'] === 'string'
+      ? ((ref as Record<string, unknown>)['id'] as string)
+      : undefined;
+    if (id === undefined) {
+      oldToNew[oldIndex] = deduped.length;
+      deduped.push(ref);
+      return;
+    }
+    const existingNewIndex = survivorIndexById.get(id);
+    if (existingNewIndex !== undefined) {
+      oldToNew[oldIndex] = existingNewIndex;
+      allOldSlotsById.get(id)!.push(oldIndex);
+      return;
+    }
+    const newIndex = deduped.length;
+    survivorIndexById.set(id, newIndex);
+    oldToNew[oldIndex] = newIndex;
+    allOldSlotsById.set(id, [oldIndex]);
+    deduped.push(ref);
+  });
+
+  if (deduped.length === refs.length) return notes; // nothing collapsed — untouched
+
+  root['references'] = deduped;
+  for (const [id, oldSlots] of allOldSlotsById) {
+    if (oldSlots.length < 2) continue;
+    notes.push(
+      `references: '${id}' was declared ${oldSlots.length} time(s) (slots ${oldSlots.join(', ')}) — collapsed to slot ${survivorIndexById.get(id)}`,
+    );
+  }
+
+  const remap = (value: unknown): unknown =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < oldToNew.length
+      ? oldToNew[value]
+      : value;
+
+  const shots = Array.isArray(root['shots']) ? root['shots'] : [];
+  for (const rawShot of shots) {
+    if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) continue;
+    const shot = rawShot as Record<string, unknown>;
+    if (Array.isArray(shot['sceneryRefs'])) {
+      shot['sceneryRefs'] = (shot['sceneryRefs'] as unknown[]).map(remap);
+    }
+    for (const key of ['acting', 'dialogue'] as const) {
+      const rows = shot[key];
+      if (!Array.isArray(rows)) continue;
+      for (const rawRow of rows) {
+        if (!rawRow || typeof rawRow !== 'object' || Array.isArray(rawRow)) continue;
+        const row = rawRow as Record<string, unknown>;
+        if (row['subjectRef'] !== undefined) row['subjectRef'] = remap(row['subjectRef']);
+      }
+    }
+  }
+
+  const anchor = root['continuationAnchor'];
+  if (anchor && typeof anchor === 'object' && !Array.isArray(anchor)) {
+    const positions = (anchor as Record<string, unknown>)['characterPositions'];
+    if (Array.isArray(positions)) {
+      for (const rawEntry of positions) {
+        if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) continue;
+        const entry = rawEntry as Record<string, unknown>;
+        if (entry['subjectRef'] !== undefined) entry['subjectRef'] = remap(entry['subjectRef']);
+      }
+    }
+  }
+
+  return notes;
+}
+
+/**
  * Rewrite index-based reference pointers into the id-based form the compiler
  * and every validator already speak.
  *
@@ -2128,6 +2241,99 @@ export function normalizeIndexedRefs(scene: unknown): string[] {
       });
     }
   }
+
+  return notes;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Voice-profile enforcement (#10)
+// ══════════════════════════════════════════════════════════════════════════
+
+/** A vocal descriptor, not an appearance descriptor — the #10 heuristic for "is this even a voice". */
+const VOCAL_DESCRIPTOR_RE = /\b(register|timbre|pace|accent|tone|pitch|voice|vocal|rasp\w*|gravel\w*|hoarse|nasal|resonan\w*|breath\w*|drawl\w*|lilt\w*|cadence|husky|croak\w*|whisper\w*|bass|baritone|tenor|alto|soprano|melodic|monotone|inflection)\b/i;
+
+/**
+ * Make `dialogue[].voicePrompt` trustworthy by having the RUNNER own it, the
+ * way it already owns `subject_definitions` and `retention_analysis`.
+ *
+ * WHY. `voicePrompt` is supposed to be a fixed per-character fact — the
+ * speaker's vocal identity, copied verbatim from that character's
+ * `character_acting_profile` — but a model demonstrably will not copy a fixed
+ * fact verbatim across many lines. Measured on `~/dhee-studios/chapter-3`: one
+ * speaker (S1) carried FOUR different identities across 11 lines, three of them
+ * a wholesale copy of a DIFFERENT character's voice, one of them an appearance
+ * description ("frail, pale, graying/balding") with nothing to synthesise a
+ * voice from. The runner previously only checked non-empty
+ * (`voicePromptValue.trim()`), which every one of those four strings satisfies.
+ *
+ * Runs AFTER `normalizeIndexedRefs` (needs `line.subjectId` resolved) and
+ * BEFORE `compileStructuredScenePrompt` (which else bakes whatever string is on
+ * the line into the H3 prose). `profilesBySubjectId` is keyed by the character
+ * id — the same id space as `references[].id` — read from the sibling
+ * `character_acting_profile` collection node's output files.
+ *
+ * Repairs rather than fails, matching this runner's existing posture toward
+ * mechanically-fixable authoring drift (`repairH3Prose`, the cut-verb supply in
+ * `compileCutMarker`): a render-time hard failure on a cosmetic mismatch is
+ * worse than a silently corrected voice, so a mismatch is OVERWRITTEN with the
+ * canonical profile value and logged, never thrown.
+ */
+export function applyVoiceProfileOverrides(
+  scene: unknown,
+  profilesBySubjectId: Record<string, string> | undefined,
+): string[] {
+  const notes: string[] = [];
+  if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return notes;
+  const root = scene as Record<string, unknown>;
+  const shots = Array.isArray(root['shots']) ? root['shots'] : [];
+  const usedVoiceBySpeaker = new Map<string, { voice: string; path: string }>();
+
+  shots.forEach((rawShot, shotIndex) => {
+    if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) return;
+    const shot = rawShot as Record<string, unknown>;
+    const dialogue = shot['dialogue'];
+    if (!Array.isArray(dialogue)) return;
+
+    dialogue.forEach((rawLine, lineIndex) => {
+      if (!rawLine || typeof rawLine !== 'object' || Array.isArray(rawLine)) return;
+      const line = rawLine as Record<string, unknown>;
+      const path = `shots[${shotIndex}].dialogue[${lineIndex}]`;
+      const subjectId = typeof line['subjectId'] === 'string' ? (line['subjectId'] as string) : undefined;
+      const speakerId = typeof line['speakerId'] === 'string' ? (line['speakerId'] as string) : undefined;
+      const currentRaw = typeof line['voicePrompt'] === 'string' ? (line['voicePrompt'] as string) : '';
+      const current = currentRaw.trim();
+
+      const canonical = subjectId && profilesBySubjectId ? profilesBySubjectId[subjectId] : undefined;
+      if (canonical) {
+        const canonicalTrimmed = canonical.trim();
+        if (current !== canonicalTrimmed) {
+          notes.push(
+            `${path}: voicePrompt for '${subjectId}' did not match character_acting_profile — ` +
+              `was ${JSON.stringify(current || '(empty)')}, replaced with the profile's identity ${JSON.stringify(canonicalTrimmed)}`,
+          );
+          line['voicePrompt'] = canonicalTrimmed;
+        }
+      } else if (current && !VOCAL_DESCRIPTOR_RE.test(current)) {
+        // No profile to repair from (e.g. a genuinely unplated off-screen
+        // speaker in a bundle that still allows one) — at least flag a string
+        // that reads as appearance, not voice.
+        notes.push(`${path}: voicePrompt ${JSON.stringify(current)} has no vocal descriptor (register/timbre/pace/accent/…) — reads like an appearance description, not a voice`);
+      }
+
+      if (speakerId) {
+        const finalVoice = (typeof line['voicePrompt'] === 'string' ? (line['voicePrompt'] as string) : '').trim();
+        const prior = usedVoiceBySpeaker.get(speakerId);
+        if (prior && prior.voice !== finalVoice) {
+          notes.push(
+            `${path}: speakerId '${speakerId}' now carries two different voice identities in this scene ` +
+              `(${JSON.stringify(prior.voice)} at ${prior.path} vs ${JSON.stringify(finalVoice)} here) — a fixed voice must stay fixed across a scene`,
+          );
+        } else if (!prior) {
+          usedVoiceBySpeaker.set(speakerId, { voice: finalVoice, path });
+        }
+      }
+    });
+  });
 
   return notes;
 }

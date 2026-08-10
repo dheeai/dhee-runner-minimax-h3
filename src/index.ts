@@ -51,7 +51,7 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
 import { injectAuthoredDialogue } from './dialogueInjection.js';
-import { normalizeIndexedRefs, stepsForSceneComplexity, buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
+import { normalizeIndexedRefs, dedupeSceneReferences, applyVoiceProfileOverrides, stepsForSceneComplexity, buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
 
 export * from './dialogueInjection.js';
 export * from './officialFormat.js';
@@ -333,6 +333,34 @@ function collectionMap(ctx: RunnerContext, key: string | undefined): Record<stri
   const out: Record<string, string> = {};
   for (const [k, p] of Object.entries(v as Record<string, unknown>)) {
     if (typeof p === 'string' && IMAGE_RE.test(p) && existsSync(p)) out[k] = p;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * A `scope:'all'` collection map of `character_acting_profile` outputs
+ * ({ characterId -> JSON file path }), reduced to just the fixed vocal
+ * identity ({ characterId -> voicePrompt }).
+ *
+ * The collection's item ids ARE `references[].id` (both key off the same
+ * story-bible character id), so no separate id-matching pass is needed — the
+ * map key is already the `subjectId` `applyVoiceProfileOverrides` looks up.
+ */
+function voiceProfileMap(ctx: RunnerContext, key: string | undefined): Record<string, string> | undefined {
+  if (!key) return undefined;
+  const v = ctx.inputs[key];
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [characterId, pathOrContent] of Object.entries(v as Record<string, unknown>)) {
+    try {
+      const parsed = typeof pathOrContent === 'object' && pathOrContent
+        ? pathOrContent as Record<string, unknown>
+        : typeof pathOrContent === 'string'
+          ? (JSON.parse(existsSync(pathOrContent) ? readFileSync(pathOrContent, 'utf-8') : pathOrContent) as Record<string, unknown>)
+          : undefined;
+      const voicePrompt = parsed?.['voicePrompt'];
+      if (typeof voicePrompt === 'string' && voicePrompt.trim()) out[characterId] = voicePrompt.trim();
+    } catch { /* unreadable/invalid profile — leave this character's voicePrompt unoverridden */ }
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -1402,6 +1430,7 @@ const H3_DESC: RunnerDescription = {
       pinnedRefs: { type: 'array', items: { type: 'object' }, description: "Operator-supplied plates pinned onto EVERY clip, bypassing the prompt's references[] entirely: [{ input, type, appearsAs, job }]. `input` is a declared bundle input id holding a single image path (kind:'file'); `type` routes it like any other reference ('character' | 'object' | 'location'). Use this for a real photograph the operator hands the bundle — an actress's actual face, a real location — which is a constraint on the whole film rather than a per-scene choice the authoring model could know to cite. Pinned plates are PREPENDED before routing, which is what makes them OVERRIDE the generated anchors: routeRefs dedupes by path, keeps only the first background (so a pinned location displaces the generated one) and fills subject slots in order (so pinned characters survive the maxRefs cap and take the lowest <Subject N> numbers). An unsupplied or unreadable input is skipped with a note, never a failure — these are optional by design and an absent photo means 'use the generated anchors'." },
       refImages: { type: 'array', items: { type: 'string' }, description: 'Explicit ORDERED reference paths (subjects first, location LAST), relative to the project then the bundle. Used when referenceInputs resolves nothing.' },
       statePlanInput: { type: 'string', description: 'plan.character_states output. byShot[shotId][characterId] -> stateId picks each character\'s appearance state; for a SECTION item the states of its own shots are merged in order, last wins.' },
+      voiceProfileInput: { type: 'string', description: "scope='all' collection input id of character_acting_profile outputs ({ characterId -> JSON path }, keyed by the same id as references[].id). When set, the runner overwrites any dialogue line's voicePrompt that does not match that character's profile verbatim — logging the mismatch rather than failing the render — instead of trusting whatever the authoring model wrote per line (#10: a fixed per-character fact, demonstrably not copied correctly across many lines)." },
       stateImagesInput: { type: 'string', description: "scope='all' map of EDITED per-state character images ({ stateId: path }). Falls back to the base anchor when a state has no image." },
       bgTypes: { type: 'array', items: { type: 'string' }, description: "references[].type values treated as background/scene and moved LAST. Default ['location','setting']." },
       maxRefs: { type: 'integer', description: 'Cap on total references, 1..9 (H3 supports 9). Background keeps its slot; lowest-priority subjects drop first. Default 9.' },
@@ -1538,6 +1567,13 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const structuredMode = rs(cfg, 'structuredMode');
   const useStructuredPrompt = shouldCompileStructuredPrompt(promptDoc, structuredMode);
   if (promptDoc && useStructuredPrompt) {
+    // Collapse padded/duplicate references[] ids FIRST — before anything reads
+    // an index. See dedupeSceneReferences' own doc for why this must precede
+    // normalizeIndexedRefs rather than follow it: it keeps "every index is in
+    // range AND names something declared exactly once" true for every reader
+    // downstream instead of just the last one.
+    const dedupeNotes = dedupeSceneReferences(promptDoc);
+    if (dedupeNotes.length) ctx.log(tag(`${itemId}: ${dedupeNotes.join('; ')}`));
     // Rewrite index-based reference pointers into the id form every validator
     // and the compiler already speak. Done FIRST so nothing downstream needs to
     // know which form the author used — and so an out-of-range index fails here,
@@ -1545,6 +1581,12 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     // surfacing later as a mysterious unknown id.
     const refNotes = normalizeIndexedRefs(promptDoc);
     if (refNotes.length) ctx.log(tag(`${itemId}: resolved ${refNotes.length} indexed reference(s)`));
+    // Overwrite a wrong/invented/appearance-not-voice voicePrompt with the
+    // character's own character_acting_profile identity. Needs subjectId
+    // resolved (just above), and must run before compileStructuredScenePrompt
+    // bakes whatever string is on the line into the H3 prose.
+    const voiceNotes = applyVoiceProfileOverrides(promptDoc, voiceProfileMap(ctx, rs(cfg, 'voiceProfileInput')));
+    for (const note of voiceNotes) ctx.log(tag(`${itemId}: WARNING — ${note}`));
     const expectedIds = expectedSceneReferenceIds(ctx, cfg, plan, itemId);
     if (expectedIds) {
       const pruned = pruneUnlicensedScenery(promptDoc, expectedIds);

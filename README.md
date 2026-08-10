@@ -71,6 +71,7 @@ Required: `outputPath`, `workflowPath`. Everything else has a working default.
     },
     "statePlanInput":   "character_states_plan",
     "stateImagesInput": "character_state_image",
+    "voiceProfileInput": "character_acting_profile", // scope:'all'; overwrites a mismatched dialogue voicePrompt with the profile's, logs the mismatch (#10)
     "bgTypes": ["location"],               // moved LAST
     "maxRefs": 9,
 
