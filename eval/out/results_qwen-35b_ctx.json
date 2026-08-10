@@ -1,0 +1,890 @@
+[
+  {
+    "scenario": "scene_04_sec_1",
+    "label": "A · two-hander, Hindi native script, multi-cut",
+    "arm": "ctx",
+    "promptChars": 21934,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 24591,
+        "usage": {
+          "completion_tokens": 1812,
+          "prompt_tokens": 5837,
+          "total_tokens": 7649,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।",
+        "तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?"
+      ],
+      "summary": "[reference generation] A focused rehearsal moment on the bare stage where Meher, relying on sound, asks Lira to locate a line she can no longer see, establishing the physical and emotional distance between them through the script.",
+      "references": [
+        {
+          "id": "meher",
+          "type": "character",
+          "appearsAs": "Silver hair pinned back, dark green shawl settled on shoulders, tall posture, eyes unfocused but attentive toward sound.",
+          "job": "The veteran actress losing her sight."
+        },
+        {
+          "id": "lira",
+          "type": "character",
+          "appearsAs": "Small, wiry frame, black cropped hair, paint-stained grey rehearsal sweater, holding a dog-eared script.",
+          "job": "The eager understudy."
+        },
+        {
+          "id": "script_bundle",
+          "type": "object",
+          "appearsAs": "Thick playscript, spine broken, margins dense with pencil, corners furred from handling.",
+          "job": "The physical anchor for the text."
+        },
+        {
+          "id": "rehearsal_stage",
+          "type": "location",
+          "appearsAs": "Empty proscenium stage, black-painted floor scuffed pale along blocking lines, one bare work light on a stand, taped marks in faded yellow, auditorium beyond as flat void.",
+          "job": "The performance space."
+        }
+      ],
+      "shots": [
+        {
+          "id": "scene_04_sec_1_shot_1",
+          "startTime": 0,
+          "endTime": 4,
+          "composition": "Medium shot. Meher stands at a faded yellow taped mark. The script bundle is held at arm's length, tilted upward toward the single bare work light to catch the glare on the pages. The work light creates a soft pool of illumination on her face and the script, leaving the background in the flat void of the auditorium.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "To find the text visually before relying on memory.",
+              "observableBehavior": "Holding the script bundle rigidly at arm's length, tilting it toward the light source. She pauses, squinting slightly with long slow blinks, then lowers her shoulders and the script as she gives up the visual search.",
+              "beatChange": "From focused visual search to auditory reliance.",
+              "interruptedAction": "Reading the page."
+            }
+          ],
+          "sceneryIds": [
+            "rehearsal_stage",
+            "script_bundle"
+          ],
+          "action": "Meher holds the script open, tilts it to the light, then lowers it slightly as she speaks. Lira is off-screen downstage.",
+          "cameraMotion": "Static Shot",
+          "sound": "Low room tone of the empty auditorium, faint rustle of thick paper as Meher adjusts the script.",
+          "transition": "The light holds on Meher's face as she loses the visual thread.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "meher",
+              "language": "Hindi",
+              "exactWords": "यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।",
+              "delivery": "Unhurried, precise consonants, slightly dry rasp on the sustained 'ई' in 'nahi'.",
+              "voicePrompt": "A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels.",
+              "offScreen": false
+            }
+          ]
+        },
+        {
+          "id": "scene_04_sec_1_shot_2",
+          "startTime": 4,
+          "endTime": 8,
+          "composition": "Medium shot. Lira stands downstage, already three steps closer than her starting position. The script bundle rests open on her forearm, held close like a shield. The work light catches the side of her face and the stained grey sweater.",
+          "acting": [
+            {
+              "subjectId": "lira",
+              "tactic": "To offer help without taking the focus.",
+              "observableBehavior": "Standing forward on the balls of her feet, script held two-handed on her forearm. She shifts her weight slightly from heel to toe as she assesses Meher's state, then speaks with eyes leading the thought.",
+              "beatChange": "From observation to offering.",
+              "interruptedAction": "Waiting in silence."
+            }
+          ],
+          "sceneryIds": [
+            "rehearsal_stage",
+            "script_bundle"
+          ],
+          "action": "Lira stands ready, script on forearm, offering to read the line Meher missed.",
+          "cameraMotion": "Static Shot",
+          "sound": "Faint rustle of paper as Lira adjusts her hold on the script, the low room tone continues.",
+          "transition": "Cut from Meher's empty gaze to Lira's attentive posture.",
+          "dialogue": [
+            {
+              "speakerId": "S2",
+              "subjectId": "lira",
+              "language": "Hindi",
+              "exactWords": "तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?",
+              "delivery": "Light, quick mid-range, breathy onset on 'Teen', ending statement slightly upward.",
+              "voicePrompt": "A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables.",
+              "offScreen": false
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "The hollow, dry acoustic of an empty proscenium stage. The faint creak of wooden floorboards under shifted weight. The soft friction of thick paper pages.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "Subtitles or language labels overlaid on the image.",
+        "Hard specular highlights on skin or objects.",
+        "Cel shading or digital gloss.",
+        "Line art outlines.",
+        "Meher looking directly at Lira or the script with focused vision.",
+        "Lira standing far back in the shadows."
+      ],
+      "duration": 8,
+      "purpose": "Meher asks Lira to read the line she can no longer find on the page, and hears her own reading come back better.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To be guided by Lira's voice when Meher's sight fails.",
+        "obstacle": "Meher's habitual reliance on visual cues and her fear of missing the text.",
+        "stakes": "Failure to trust Lira means the line is lost and the rehearsal stalls.",
+        "physicalBusiness": "Meher holds the script out, tilts it to the light, then lowers it. Lira stands close, script on forearm, shifting weight.",
+        "bodyState": "Meher is upright but mentally searching; Lira is coiled forward, attentive.",
+        "eyeLife": "Meher's eyes travel toward Lira's voice, arriving slightly late. Lira's eyes dart between Meher's face and the script page.",
+        "subtext": "Meher is admitting her loss; Lira is offering safety.",
+        "statusDynamic": "Meher yields status; Lira rises to meet it.",
+        "proxemics": "Lira is three steps closer than standard blocking, invading Meher's space slightly to offer help."
+      }
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is Silver hair pinned back, dark green shawl settled on shoulders, tall posture, eyes unfocused but attentive toward sound. in <Picture 1>. Follow it for The veteran actress losing her sight..\n<Subject 2> is Small, wiry frame, black cropped hair, paint-stained grey rehearsal sweater, holding a dog-eared script. in <Picture 2>. Follow it for The eager understudy..\n<Subject 3> is Thick playscript, spine broken, margins dense with pencil, corners furred from handling. in <Picture 3>. Follow it for The physical anchor for the text..\n<Subject 4> is Empty proscenium stage, black-painted floor scuffed pale along blocking lines, one bare work light on a stand, taped marks in faded yellow, auditorium beyond as flat void. in <Picture 4>. Follow it for The performance space..\n\nsummary:\n[reference generation] A focused rehearsal moment on the bare stage where Meher, relying on sound, asks Lira to locate a line she can no longer see, establishing the physical and emotional distance between them through the script.\n\nretention_analysis:\n<Subject 1>: fully_preserved - The veteran actress losing her sight..\n<Subject 2>: fully_preserved - The eager understudy..\n<Subject 3>: fully_preserved - The physical anchor for the text..\n<Subject 4>: fully_preserved - The performance space..\n\ndetailed_description:\nPerformance objective: To be guided by Lira's voice when Meher's sight fails.. Obstacle: Meher's habitual reliance on visual cues and her fear of missing the text.. Stakes: Failure to trust Lira means the line is lost and the rehearsal stalls.. Physical business: Meher holds the script out, tilts it to the light, then lowers it. Lira stands close, script on forearm, shifting weight.. Body state: Meher is upright but mentally searching; Lira is coiled forward, attentive.. Eye life: Meher's eyes travel toward Lira's voice, arriving slightly late. Lira's eyes dart between Meher's face and the script page.. Subtext: Meher is admitting her loss; Lira is offering safety.. Status dynamic: Meher yields status; Lira rises to meet it.. Proxemics: Lira is three steps closer than standard blocking, invading Meher's space slightly to offer help..\n\n[Shot 1] Medium shot. Meher stands at a faded yellow taped mark. The script bundle is held at arm's length, tilted upward toward the single bare work light to catch the glare on the pages. The work light creates a soft pool of illumination on her face and the script, leaving the background in the flat void of the auditorium. Visible subjects: <Subject 1>, <Subject 4>, <Subject 3>. Action: Meher holds the script open, tilts it to the light, then lowers it slightly as she speaks. Lira is off-screen downstage. Camera: Static Shot. Sound: Low room tone of the empty auditorium, faint rustle of thick paper as Meher adjusts the script.. <Subject 1> Acting: Tactic: To find the text visually before relying on memory.. Observable behavior: Holding the script bundle rigidly at arm's length, tilting it toward the light source. She pauses, squinting slightly with long slow blinks, then lowers her shoulders and the script as she gives up the visual search.. Beat change: From focused visual search to auditory reliance.. Interrupted action: Reading the page.. Voice identity for <Subject 1>: A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels. <Subject 1> (S1) says Unhurried, precise consonants, slightly dry rasp on the sustained 'ई' in 'nahi'.: <d>[Hindi] यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।</d>\n\n[Shot 2] At 00:04.000, Cut from Meher's empty gaze to Lira's attentive posture. Medium shot. Lira stands downstage, already three steps closer than her starting position. The script bundle rests open on her forearm, held close like a shield. The work light catches the side of her face and the stained grey sweater. Visible subjects: <Subject 2>, <Subject 4>, <Subject 3>. Action: Lira stands ready, script on forearm, offering to read the line Meher missed. Camera: Static Shot. Sound: Faint rustle of paper as Lira adjusts her hold on the script, the low room tone continues.. <Subject 2> Acting: Tactic: To offer help without taking the focus.. Observable behavior: Standing forward on the balls of her feet, script held two-handed on her forearm. She shifts her weight slightly from heel to toe as she assesses Meher's state, then speaks with eyes leading the thought.. Beat change: From observation to offering.. Interrupted action: Waiting in silence.. Voice identity for <Subject 2>: A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables. <Subject 2> (S2) says Light, quick mid-range, breathy onset on 'Teen', ending statement slightly upward.: <d>[Hindi] तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?</d>\n\nNegative directions: Subtitles or language labels overlaid on the image.; Hard specular highlights on skin or objects.; Cel shading or digital gloss.; Line art outlines.; Meher looking directly at Lira or the script with focused vision.; Lira standing far back in the shadows..\n\noverall_soundscape:\nThe hollow, dry acoustic of an empty proscenium stage. The faint creak of wooden floorboards under shifted weight. The soft friction of thick paper pages.\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": []
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: To be guided by Lira's voice when Meher's sight fails.. Obstacle: M...\""
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "2 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "transition-grammar",
+        "msg": "shots[1].transition does not begin with a documented cut phrase, so the marker reads \"At MM:SS.mmm, Cut from Meher's empty gaze to Lira's attentive posture\""
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "med",
+        "code": "negatives-as-nouns",
+        "msg": "1/6 negatives are bare nouns in positive prose (e.g. \"Line art outlines.\") — H3 has no negative conditioning, so these read as content to render"
+      }
+    ],
+    "words": 623
+  },
+  {
+    "scenario": "scene_07_sec_2",
+    "label": "B · genuinely silent beat, no dialogue",
+    "arm": "ctx",
+    "promptChars": 21934,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 16534,
+        "usage": {
+          "completion_tokens": 1323,
+          "prompt_tokens": 5837,
+          "total_tokens": 7160,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [],
+      "summary": "[scene construction] A silent, two-shot sequence where Meher, alone on the rehearsal stage after the company has left, locates the prompter's brass bell by touch and holds it without ringing, acknowledging the silence of her departure.",
+      "references": [
+        {
+          "id": "meher",
+          "type": "character",
+          "appearsAs": "A 61-year-old actress with silver hair, wearing a dark green shawl, standing in the dim work light.",
+          "job": "The protagonist finding the bell."
+        },
+        {
+          "id": "brass_bell",
+          "type": "object",
+          "appearsAs": "A small tarnished brass handbell on a wooden base, sitting on the prompt desk.",
+          "job": "The prop representing the prompter's call, held but not rung."
+        },
+        {
+          "id": "rehearsal_stage",
+          "type": "location",
+          "appearsAs": "The empty black-painted stage with pale scuff marks, illuminated by a single bare work light.",
+          "job": "The environment providing the desk and the void of the auditorium."
+        }
+      ],
+      "shots": [
+        {
+          "id": "scene_07_sec_2_shot_1",
+          "startTime": 0,
+          "endTime": 3.5,
+          "composition": "Medium close-up on the prompt desk area. Meher's hand enters the frame from the right, fingers trailing along the edge of the wooden desk in the dim light. The brass bell is visible in the lower left of the frame. Focus is soft, emphasizing the tactile search over visual clarity.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "Searching by touch to confirm the end of the day.",
+              "observableBehavior": "Her hand moves slowly along the desk edge, fingers spread slightly to feel the grain, until they encounter the round wooden base of the bell. Her hand closes gently around the handle, thumb resting on the bell's side.",
+              "beatChange": "Transition from searching to holding."
+            }
+          ],
+          "sceneryIds": [
+            "brass_bell",
+            "rehearsal_stage"
+          ],
+          "action": "Meher's hand moves from empty space to resting on the bell. The bell remains silent.",
+          "cameraMotion": "Static Shot",
+          "sound": "Soft friction of fabric against wood, the faint creak of the desk as her hand presses down, ambient room silence."
+        },
+        {
+          "id": "scene_07_sec_2_shot_2",
+          "startTime": 3.5,
+          "endTime": 6,
+          "composition": "Wide shot. Meher stands alone in the single pool of work light, slightly off-center. The rest of the stage is dark void. She holds the bell in one hand at waist height. Her other hand is empty. The shawl is visible on her shoulders, though slightly loose.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "Contemplating the sound she is about to make.",
+              "observableBehavior": "She lifts the bell slightly, pauses, then lowers it back to her side without ringing. Her shoulders drop slightly, a release of tension. She turns her head slightly toward the dark auditorium.",
+              "beatChange": "Decision made to not ring."
+            }
+          ],
+          "sceneryIds": [
+            "brass_bell",
+            "rehearsal_stage"
+          ],
+          "action": "Meher lifts and lowers the bell without striking it. She stands still in the light.",
+          "cameraMotion": "Static Shot",
+          "sound": "A soft metallic clink as the bell handle taps her thumb, then silence. Distant faint hum of the building ventilation."
+        }
+      ],
+      "overallSoundscape": "The heavy quiet of an empty theatre, broken only by the soft sounds of Meher's hand on wood and the faint metallic tap of the bell against her thumb. No music, no crowd.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No subtitles or captions.",
+        "No other characters present.",
+        "No sound of the bell ringing.",
+        "No hard specular highlights on the brass.",
+        "No digital gloss or sharp lines.",
+        "The bell is not rung."
+      ],
+      "duration": 6,
+      "purpose": "Meher acknowledges the prompter's bell one last time without sounding it, marking her final, silent departure from the stage.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To confirm the end of the rehearsal day through ritual touch.",
+        "obstacle": "The dim light forces reliance on memory and touch rather than sight.",
+        "stakes": "If she rings it, the routine continues; if she doesn't, the role is truly hers.",
+        "physicalBusiness": "Trailing fingers along the desk edge, locating the bell base, closing hand around handle, lifting and lowering the bell.",
+        "bodyState": "Standing with weight settled back on heels, chin level, shoulders relaxed but not slumped.",
+        "eyeLife": "Eyes fixed on the bell's location, long slow blinks, gaze arriving slightly late.",
+        "subtext": "The bell is the only remaining connection to the director's authority.",
+        "statusDynamic": "From active searching to passive acceptance.",
+        "proxemics": "Intimate proximity to the desk object, solitary in the wider space."
+      },
+      "continuationAnchor": "Meher stands alone in the work light, hand lowered at her side, the bell held loosely. The stage is dark around her."
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is A 61-year-old actress with silver hair, wearing a dark green shawl, standing in the dim work light. in <Picture 1>. Follow it for The protagonist finding the bell..\n<Subject 2> is A small tarnished brass handbell on a wooden base, sitting on the prompt desk. in <Picture 2>. Follow it for The prop representing the prompter's call, held but not rung..\n<Subject 3> is The empty black-painted stage with pale scuff marks, illuminated by a single bare work light. in <Picture 3>. Follow it for The environment providing the desk and the void of the auditorium..\n\nsummary:\n[scene construction] A silent, two-shot sequence where Meher, alone on the rehearsal stage after the company has left, locates the prompter's brass bell by touch and holds it without ringing, acknowledging the silence of her departure.\n\nretention_analysis:\n<Subject 1>: fully_preserved - The protagonist finding the bell..\n<Subject 2>: fully_preserved - The prop representing the prompter's call, held but not rung..\n<Subject 3>: fully_preserved - The environment providing the desk and the void of the auditorium..\n\ndetailed_description:\nPerformance objective: To confirm the end of the rehearsal day through ritual touch.. Obstacle: The dim light forces reliance on memory and touch rather than sight.. Stakes: If she rings it, the routine continues; if she doesn't, the role is truly hers.. Physical business: Trailing fingers along the desk edge, locating the bell base, closing hand around handle, lifting and lowering the bell.. Body state: Standing with weight settled back on heels, chin level, shoulders relaxed but not slumped.. Eye life: Eyes fixed on the bell's location, long slow blinks, gaze arriving slightly late.. Subtext: The bell is the only remaining connection to the director's authority.. Status dynamic: From active searching to passive acceptance.. Proxemics: Intimate proximity to the desk object, solitary in the wider space..\n\n[Shot 1] Medium close-up on the prompt desk area. Meher's hand enters the frame from the right, fingers trailing along the edge of the wooden desk in the dim light. The brass bell is visible in the lower left of the frame. Focus is soft, emphasizing the tactile search over visual clarity. Visible subjects: <Subject 1>, <Subject 2>, <Subject 3>. Action: Meher's hand moves from empty space to resting on the bell. The bell remains silent. Camera: Static Shot. Sound: Soft friction of fabric against wood, the faint creak of the desk as her hand presses down, ambient room silence.. <Subject 1> Acting: Tactic: Searching by touch to confirm the end of the day.. Observable behavior: Her hand moves slowly along the desk edge, fingers spread slightly to feel the grain, until they encounter the round wooden base of the bell. Her hand closes gently around the handle, thumb resting on the bell's side.. Beat change: Transition from searching to holding..\n\n[Shot 2] At 00:03.500, the shot cuts to a new view. Wide shot. Meher stands alone in the single pool of work light, slightly off-center. The rest of the stage is dark void. She holds the bell in one hand at waist height. Her other hand is empty. The shawl is visible on her shoulders, though slightly loose. Visible subjects: <Subject 1>, <Subject 2>, <Subject 3>. Action: Meher lifts and lowers the bell without striking it. She stands still in the light. Camera: Static Shot. Sound: A soft metallic clink as the bell handle taps her thumb, then silence. Distant faint hum of the building ventilation.. <Subject 1> Acting: Tactic: Contemplating the sound she is about to make.. Observable behavior: She lifts the bell slightly, pauses, then lowers it back to her side without ringing. Her shoulders drop slightly, a release of tension. She turns her head slightly toward the dark auditorium.. Beat change: Decision made to not ring..\n\nContinuation anchor: Meher stands alone in the work light, hand lowered at her side, the bell held loosely. The stage is dark around her.\nNegative directions: No subtitles or captions.; No other characters present.; No sound of the bell ringing.; No hard specular highlights on the brass.; No digital gloss or sharp lines.; The bell is not rung..\n\noverall_soundscape:\nThe heavy quiet of an empty theatre, broken only by the soft sounds of Meher's hand on wood and the faint metallic tap of the bell against her thumb. No music, no crowd.\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": []
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: To confirm the end of the rehearsal day through ritual touch.. Obst...\""
+      },
+      {
+        "sev": "med",
+        "code": "bad-task-prefix",
+        "msg": "summary prefix uses non-official task type(s): scene construction"
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "2 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "low",
+        "code": "off-grid-duration",
+        "msg": "duration 6s = 144f, not on the 17k+5 grid (nearest legal: 141f)"
+      }
+    ],
+    "words": 504
+  },
+  {
+    "scenario": "scene_11_sec_1",
+    "label": "C · crowded — 3 characters, 2 objects, location, one state plate",
+    "arm": "ctx",
+    "promptChars": 21934,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 16222,
+        "usage": {
+          "completion_tokens": 1861,
+          "prompt_tokens": 5837,
+          "total_tokens": 7698,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "From the top of the scene. Understudy on.",
+        "Not yet. Let me hear it once more."
+      ],
+      "summary": "[reference generation] The rehearsal room hears the stage manager call the restart for the understudy, followed by the lead actress stopping the take to hear the line again.",
+      "references": [
+        {
+          "id": "meher",
+          "type": "character",
+          "appearsAs": "61-year-old actress, dark green shawl slipped off left shoulder, hair loose at temple, standing at the edge of the work light.",
+          "job": "Lead actress, the blind veteran."
+        },
+        {
+          "id": "lira",
+          "type": "character",
+          "appearsAs": "26-year-old understudy, small and wiry, black hair cropped short, paint-stained grey rehearsal sweater, script open on forearm.",
+          "job": "Understudy, the replacement."
+        },
+        {
+          "id": "dhruv",
+          "type": "character",
+          "appearsAs": "40s stage manager, heavy-set, headset around neck, clipboard held against sternum, shirtsleeves rolled.",
+          "job": "Stage manager, the scheduler."
+        },
+        {
+          "id": "script_bundle",
+          "type": "object",
+          "appearsAs": "Thick playscript with broken spine and furried corners, held by Meher and Lira.",
+          "job": "The annotated script."
+        },
+        {
+          "id": "brass_bell",
+          "type": "object",
+          "appearsAs": "Small tarnished brass handbell on wooden base, resting on the downstage-left prompt desk.",
+          "job": "The prompter's bell."
+        },
+        {
+          "id": "rehearsal_stage",
+          "type": "location",
+          "appearsAs": "Empty proscenium stage, black floor scuffed pale along blocking lines, one bare work light on a stand, taped marks in faded yellow.",
+          "job": "The bare rehearsal stage."
+        }
+      ],
+      "shots": [
+        {
+          "id": "scene_11_sec_1_shot_1",
+          "startTime": 0,
+          "endTime": 3.5,
+          "composition": "Medium shot at prompt desk. Dhruv is center frame, facing the stage. The brass bell and script bundle are on the desk in the foreground. The rehearsal stage is visible behind him.",
+          "acting": [
+            {
+              "subjectId": "dhruv",
+              "tactic": "Call the restart with flat authority.",
+              "observableBehavior": "Stands square, one hand near headset, looks from clipboard to the dark stage.",
+              "beatChange": "Head turns slightly toward Lira's direction after speaking."
+            }
+          ],
+          "sceneryIds": [
+            "brass_bell",
+            "script_bundle",
+            "rehearsal_stage"
+          ],
+          "action": "Dhruv calls the cue. The room goes silent.",
+          "cameraMotion": "Static Shot",
+          "sound": "Floorboard creak as Dhruv shifts weight. Distant HVAC hum.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "dhruv",
+              "language": "English",
+              "exactWords": "From the top of the scene. Understudy on.",
+              "delivery": "Heavy, flat baritone, unhurried.",
+              "voicePrompt": "A man in his mid-40s with a heavy, flat baritone, low volume, entirely unhurried, minimal pitch movement, the voice of somebody who repeats instructions all day.",
+              "offScreen": false
+            }
+          ]
+        },
+        {
+          "id": "scene_11_sec_1_shot_2",
+          "startTime": 3.5,
+          "endTime": 7,
+          "composition": "Medium shot of Lira downstage center. She is mid-stage, script coming up, taking half a step onto the mark. The work light illuminates her front.",
+          "acting": [
+            {
+              "subjectId": "lira",
+              "tactic": "Accept the cue immediately.",
+              "observableBehavior": "Rocks forward on balls of feet, script held two-handed as a shield, eyes rapid target changes from Dhruv to floor.",
+              "beatChange": "Shoulders drop instantly as she prepares to speak."
+            }
+          ],
+          "sceneryIds": [
+            "script_bundle",
+            "rehearsal_stage"
+          ],
+          "action": "Lira moves onto the mark. She waits for the start.",
+          "cameraMotion": "Static Shot",
+          "sound": "Fabric rustle as Lira shifts stance. Script page turn.",
+          "transition": "Cut from Dhruv's call to Lira's reaction, revealing her readiness.",
+          "dialogue": []
+        },
+        {
+          "id": "scene_11_sec_1_shot_3",
+          "startTime": 7,
+          "endTime": 10.13,
+          "composition": "Medium shot of Meher at the edge of the work light. She is slightly out of the main beam. The shawl is off her left shoulder.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "Stop the rehearsal to verify the sound.",
+              "observableBehavior": "Weight settled back on heels, chin level. Hand finds the bell or desk edge. Eyes travel toward Dhruv's voice, arriving half a beat late.",
+              "beatChange": "Stops the room's momentum without raising voice."
+            }
+          ],
+          "sceneryIds": [
+            "brass_bell",
+            "rehearsal_stage"
+          ],
+          "action": "Meher interrupts the flow. Lira freezes.",
+          "cameraMotion": "Static Shot",
+          "sound": "Low breath from Meher. Silence from Lira.",
+          "dialogue": [
+            {
+              "speakerId": "S2",
+              "subjectId": "meher",
+              "language": "English",
+              "exactWords": "Not yet. Let me hear it once more.",
+              "delivery": "Low, resonant, deliberate pauses.",
+              "voicePrompt": "A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels.",
+              "offScreen": false
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "The hollow acoustic of an empty rehearsal room. Low HVAC hum. Fabric rustles and soft footfalls on scuffed wood.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No subtitles",
+        "No extra actors",
+        "No hard specular highlights",
+        "No cel shading",
+        "No digital gloss",
+        "No redesigned references"
+      ],
+      "duration": 10.13,
+      "purpose": "Dhruv calls the cue that hands Meher's entrance to Lira, and the room hears it happen.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To stop Lira and hear her own part reflected back clearly.",
+        "obstacle": "The momentum of the restart and Lira's eagerness.",
+        "stakes": "If she does not stop it now, she loses the control of her own line.",
+        "physicalBusiness": "Hand finds the desk edge. Weight settles back on heels.",
+        "bodyState": "Shawl slipped off left shoulder.",
+        "eyeLife": "Gaze travels toward sound, arriving late and slightly off-target."
+      },
+      "continuationAnchor": "Meher stands at the edge of the light, hand on the desk, waiting for Lira to begin the line again."
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is 61-year-old actress, dark green shawl slipped off left shoulder, hair loose at temple, standing at the edge of the work light. in <Picture 1>. Follow it for Lead actress, the blind veteran..\n<Subject 2> is 26-year-old understudy, small and wiry, black hair cropped short, paint-stained grey rehearsal sweater, script open on forearm. in <Picture 2>. Follow it for Understudy, the replacement..\n<Subject 3> is 40s stage manager, heavy-set, headset around neck, clipboard held against sternum, shirtsleeves rolled. in <Picture 3>. Follow it for Stage manager, the scheduler..\n<Subject 4> is Thick playscript with broken spine and furried corners, held by Meher and Lira. in <Picture 4>. Follow it for The annotated script..\n<Subject 5> is Small tarnished brass handbell on wooden base, resting on the downstage-left prompt desk. in <Picture 5>. Follow it for The prompter's bell..\n<Subject 6> is Empty proscenium stage, black floor scuffed pale along blocking lines, one bare work light on a stand, taped marks in faded yellow. in <Picture 6>. Follow it for The bare rehearsal stage..\n\nsummary:\n[reference generation] The rehearsal room hears the stage manager call the restart for the understudy, followed by the lead actress stopping the take to hear the line again.\n\nretention_analysis:\n<Subject 1>: fully_preserved - Lead actress, the blind veteran..\n<Subject 2>: fully_preserved - Understudy, the replacement..\n<Subject 3>: fully_preserved - Stage manager, the scheduler..\n<Subject 4>: fully_preserved - The annotated script..\n<Subject 5>: fully_preserved - The prompter's bell..\n<Subject 6>: fully_preserved - The bare rehearsal stage..\n\ndetailed_description:\nPerformance objective: To stop Lira and hear her own part reflected back clearly.. Obstacle: The momentum of the restart and Lira's eagerness.. Stakes: If she does not stop it now, she loses the control of her own line.. Physical business: Hand finds the desk edge. Weight settles back on heels.. Body state: Shawl slipped off left shoulder.. Eye life: Gaze travels toward sound, arriving late and slightly off-target..\n\n[Shot 1] Medium shot at prompt desk. Dhruv is center frame, facing the stage. The brass bell and script bundle are on the desk in the foreground. The rehearsal stage is visible behind him. Visible subjects: <Subject 3>, <Subject 5>, <Subject 4>, <Subject 6>. Action: Dhruv calls the cue. The room goes silent. Camera: Static Shot. Sound: Floorboard creak as Dhruv shifts weight. Distant HVAC hum.. <Subject 3> Acting: Tactic: Call the restart with flat authority.. Observable behavior: Stands square, one hand near headset, looks from clipboard to the dark stage.. Beat change: Head turns slightly toward Lira's direction after speaking.. Voice identity for <Subject 3>: A man in his mid-40s with a heavy, flat baritone, low volume, entirely unhurried, minimal pitch movement, the voice of somebody who repeats instructions all day. <Subject 3> (S1) says Heavy, flat baritone, unhurried.: <d>[English] From the top of the scene. Understudy on.</d>\n\n[Shot 2] At 00:03.500, Cut from Dhruv's call to Lira's reaction, revealing her readiness. Medium shot of Lira downstage center. She is mid-stage, script coming up, taking half a step onto the mark. The work light illuminates her front. Visible subjects: <Subject 2>, <Subject 4>, <Subject 6>. Action: Lira moves onto the mark. She waits for the start. Camera: Static Shot. Sound: Fabric rustle as Lira shifts stance. Script page turn.. <Subject 2> Acting: Tactic: Accept the cue immediately.. Observable behavior: Rocks forward on balls of feet, script held two-handed as a shield, eyes rapid target changes from Dhruv to floor.. Beat change: Shoulders drop instantly as she prepares to speak..\n\n[Shot 3] At 00:07.000, the shot cuts to a new view. Medium shot of Meher at the edge of the work light. She is slightly out of the main beam. The shawl is off her left shoulder. Visible subjects: <Subject 1>, <Subject 5>, <Subject 6>. Action: Meher interrupts the flow. Lira freezes. Camera: Static Shot. Sound: Low breath from Meher. Silence from Lira.. <Subject 1> Acting: Tactic: Stop the rehearsal to verify the sound.. Observable behavior: Weight settled back on heels, chin level. Hand finds the bell or desk edge. Eyes travel toward Dhruv's voice, arriving half a beat late.. Beat change: Stops the room's momentum without raising voice.. Voice identity for <Subject 1>: A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels. <Subject 1> (S2) says Low, resonant, deliberate pauses.: <d>[English] Not yet. Let me hear it once more.</d>\n\nContinuation anchor: Meher stands at the edge of the light, hand on the desk, waiting for Lira to begin the line again.\nNegative directions: No subtitles; No extra actors; No hard specular highlights; No cel shading; No digital gloss; No redesigned references.\n\noverall_soundscape:\nThe hollow acoustic of an empty rehearsal room. Low HVAC hum. Fabric rustles and soft footfalls on scuffed wood.\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": []
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: To stop Lira and hear her own part reflected back clearly.. Obstacl...\""
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "3 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "transition-grammar",
+        "msg": "shots[1].transition does not begin with a documented cut phrase, so the marker reads \"At MM:SS.mmm, Cut from Dhruv's call to Lira's reaction, revealing her\""
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      }
+    ],
+    "words": 532
+  },
+  {
+    "scenario": "scene_02_sec_1",
+    "label": "D · single continuous take, English voiceover",
+    "arm": "ctx",
+    "promptChars": 21934,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 12937,
+        "usage": {
+          "completion_tokens": 985,
+          "prompt_tokens": 5837,
+          "total_tokens": 6822,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "I learned her part before anyone asked me to."
+      ],
+      "summary": "[reference generation] Lira sits alone in the green room under the mirror bulbs with the script closed on her knees. She looks at her own reflection and speaks the line in her own voice, admitting that she learned Meher's part before being asked.",
+      "references": [
+        {
+          "id": "lira",
+          "type": "character",
+          "appearsAs": "Small and wiry, black hair cropped short, wearing a paint-stained grey rehearsal sweater.",
+          "job": "The understudy, alone in the green room, holding the script on her knees and looking at the mirror."
+        },
+        {
+          "id": "script_bundle",
+          "type": "object",
+          "appearsAs": "A thick playscript with a broken spine and furred corners, closed and resting flat on Lira's knees.",
+          "job": "The physical object of the part Lira has learned by heart."
+        },
+        {
+          "id": "green_room",
+          "type": "location",
+          "appearsAs": "A narrow windowless room with a mirror wall where half the bulbs are dead, creating uneven lighting; two mismatched armchairs and coats on hooks.",
+          "job": "The intimate, confined space where Lira rehearses alone."
+        }
+      ],
+      "shots": [
+        {
+          "id": "scene_02_sec_1_shot_1",
+          "startTime": 0,
+          "endTime": 7,
+          "composition": "One unbroken move: Lira sits in the mismatched armchair under the half-dead mirror bulbs. The camera holds on her reflection and her physical presence, script closed on her knees.",
+          "acting": [
+            {
+              "subjectId": "lira",
+              "tactic": "To see herself as the actress rather than the understudy.",
+              "observableBehavior": "Sits still with the script on her knees. Looks at her own reflection in the mirror. Her mouth moves silently as she speaks the line into the room, eyes leading the thought before the sound.",
+              "beatChange": "Maintains eye contact with the mirror reflection throughout the line."
+            }
+          ],
+          "sceneryIds": [
+            "script_bundle",
+            "green_room"
+          ],
+          "action": "Lira remains seated. The line is delivered as voiceover while her mouth moves slightly, syncing with the reflection's lip movement.",
+          "cameraMotion": "Static Shot",
+          "sound": "The faint hum of the single working bulb. Lira's quiet breathing."
+        }
+      ],
+      "overallSoundscape": "The room is quiet except for the faint hum of the single working mirror bulb and Lira's soft, internal breathing.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No subtitles",
+        "No extra people in the green room",
+        "No digital gloss on the mirror reflection",
+        "No line art or cel shading",
+        "No hard specular highlights on Lira's face"
+      ],
+      "duration": 7,
+      "purpose": "Lira admits to herself that she has already learned Meher's part, establishing her internal readiness.",
+      "shotStructure": "locked_single",
+      "performance": {
+        "objective": "To see herself as the actress rather than the understudy",
+        "obstacle": "The silence of the room and the dead bulbs emphasize her isolation.",
+        "stakes": "She must internalize the role before anyone else asks her to perform it.",
+        "physicalBusiness": "Sits in the armchair, script on knees. Looks at reflection. Mouth moves slightly in sync with voiceover.",
+        "bodyState": "Relaxed but attentive, weight settled back on the chair.",
+        "eyeLife": "Rapid target changes from mirror to floor to script, but holds on the mirror reflection during the line. Blinks tight and often.",
+        "subtext": "Pride and anticipation mixed with the weight of expectation.",
+        "statusDynamic": "Quiet confidence masking nervous energy."
+      },
+      "continuationAnchor": "Lira remains seated in the armchair, script on her knees, looking at her reflection. The green room is still, with the single bulb humming."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "spokenLines has dialogue without exact shot ownership: I learned her part before anyone asked me to."
+  },
+  {
+    "scenario": "scene_19_sec_3",
+    "label": "E · 15.08s dense multi-cut, one line crossing a cut",
+    "arm": "ctx",
+    "promptChars": 21934,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 15425,
+        "usage": {
+          "completion_tokens": 2553,
+          "prompt_tokens": 5837,
+          "total_tokens": 8390,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "Take it. It sits better on you than it does on me.",
+        "Three steps to the mark, then stop. Do not look for the light. It will find you."
+      ],
+      "summary": "[reference generation] A continuous handover of costume and blocking direction between the departing lead and her understudy on the rehearsal stage, punctuated by cuts that emphasize the physical transfer and the arrival at the mark.",
+      "references": [
+        {
+          "id": "meher",
+          "type": "character",
+          "appearsAs": "61-year-old actress, silver hair pinned, dark green shawl being removed",
+          "job": "The departing lead actress giving instructions"
+        },
+        {
+          "id": "lira",
+          "type": "character",
+          "appearsAs": "26-year-old understudy, short black hair, paint-stained grey rehearsal sweater now changed into plain black stage blacks with sleeves pushed to the elbow",
+          "job": "The replacement actress receiving the role"
+        },
+        {
+          "id": "script_bundle",
+          "type": "object",
+          "appearsAs": "Thick annotated playscript with broken spine and furred corners",
+          "job": "The physical script held or resting near the characters"
+        },
+        {
+          "id": "rehearsal_stage",
+          "type": "location",
+          "appearsAs": "Empty proscenium stage with black painted floor, scuffed pale along blocking lines, faded yellow tape marks, one bare work light",
+          "job": "The rehearsal space environment"
+        }
+      ],
+      "shots": [
+        {
+          "id": "scene_19_sec_3_shot_1",
+          "startTime": 0,
+          "endTime": 4,
+          "composition": "Medium shot. Meher stands center-stage, unwinding the dark green shawl from her shoulders and holding it out into empty air at chest height, roughly where she believes Lira is standing. The background is the flat void of the auditorium.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "To transfer responsibility",
+              "observableBehavior": "Unwinds the shawl slowly, holds it out with both hands, weight settled back on heels, chin level.",
+              "beatChange": "Transitions from wearing the shawl to holding it out.",
+              "interruptedAction": "None"
+            },
+            {
+              "subjectId": "lira",
+              "tactic": "To receive",
+              "observableBehavior": "Off-screen left, standing still, listening.",
+              "beatChange": "Stillness.",
+              "interruptedAction": "None"
+            }
+          ],
+          "sceneryIds": [
+            "rehearsal_stage"
+          ],
+          "action": "Meher fully removes the shawl from her shoulders and extends it outward.",
+          "cameraMotion": "Static Shot",
+          "sound": "Soft rustle of wool fabric, faint room ambience.",
+          "transition": "Cut from Meher's empty-handed gesture to the hands receiving it.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "meher",
+              "language": "Hindi",
+              "exactWords": "Take it. It sits better on you than it does on me.",
+              "delivery": "Gentle, matter-of-fact",
+              "voicePrompt": "A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels.",
+              "offScreen": false
+            }
+          ]
+        },
+        {
+          "id": "scene_19_sec_3_shot_2",
+          "startTime": 4,
+          "endTime": 7.5,
+          "composition": "Close-up on hands. Lira's hands in black stage blacks sleeves take the shawl. One finger passes through a visible moth hole in the green fabric.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "To observe",
+              "observableBehavior": "Off-screen right, holding the other end of the shawl.",
+              "beatChange": "Stillness.",
+              "interruptedAction": "None"
+            },
+            {
+              "subjectId": "lira",
+              "tactic": "To feel the texture",
+              "observableBehavior": "Fingers trace the moth hole, shoulders drop slightly upon contact.",
+              "beatChange": "Tension release upon touch.",
+              "interruptedAction": "None"
+            }
+          ],
+          "sceneryIds": [],
+          "action": "Lira's hands take possession of the shawl.",
+          "cameraMotion": "Static Shot",
+          "sound": "Fabric sliding against fabric.",
+          "dialogue": []
+        },
+        {
+          "id": "scene_19_sec_3_shot_3",
+          "startTime": 7.5,
+          "endTime": 12,
+          "composition": "Medium two-shot. Meher and Lira stand close. Meher has her hand on Lira's left shoulder. They are beginning to move together. The background shows the taped marks on the floor.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "To guide",
+              "observableBehavior": "Hand on Lira's shoulder, turning her body slightly, eyes traveling toward sound.",
+              "beatChange": "Transition from static handover to movement.",
+              "interruptedAction": "None"
+            },
+            {
+              "subjectId": "lira",
+              "tactic": "To follow",
+              "observableBehavior": "Shoulders relaxed, script bundle now tucked under arm or on floor (out of frame focus), looking down at the mark.",
+              "beatChange": "Readiness to move.",
+              "interruptedAction": "None"
+            }
+          ],
+          "sceneryIds": [
+            "rehearsal_stage",
+            "script_bundle"
+          ],
+          "action": "Meher guides Lira two steps toward the tape mark.",
+          "cameraMotion": "Static Shot",
+          "sound": "Footsteps on black painted floor, soft fabric rustle.",
+          "transition": "Cut from the close-up of the hands to the two-shot of the bodies moving.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "meher",
+              "language": "Hindi",
+              "exactWords": "Three steps to the mark, then stop. Do not look for the light. It will find you.",
+              "delivery": "Steady, instructional",
+              "voicePrompt": "A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels.",
+              "offScreen": false
+            }
+          ]
+        },
+        {
+          "id": "scene_19_sec_3_shot_4",
+          "startTime": 12,
+          "endTime": 15.08,
+          "composition": "Low angle close-up on the floor. Two pairs of feet (Meher's flats and Lira's stage shoes) arrive and stop precisely on the faded yellow tape mark. The work light casts long shadows.",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "tactic": "To confirm",
+              "observableBehavior": "Feet planted firmly on the mark.",
+              "beatChange": "Arrival.",
+              "interruptedAction": "Walking stops."
+            },
+            {
+              "subjectId": "lira",
+              "tactic": "To settle",
+              "observableBehavior": "Feet planting firmly next to Meher's, weight shifting slightly.",
+              "beatChange": "Arrival.",
+              "interruptedAction": "Walking stops."
+            }
+          ],
+          "sceneryIds": [
+            "rehearsal_stage"
+          ],
+          "action": "Both characters' feet come to rest on the taped mark.",
+          "cameraMotion": "Static Shot",
+          "sound": "Final thud of footsteps, room settles.",
+          "transition": "Cut from the two-shot bodies to the floor marks.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "meher",
+              "language": "Hindi",
+              "exactWords": "Three steps to the mark, then stop. Do not look for the light. It will find you.",
+              "delivery": "Fading slightly as the line ends",
+              "voicePrompt": "A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels.",
+              "offScreen": false
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Quiet rehearsal room ambience, faint HVAC hum, soft fabric rustles, distinct footfalls on painted wood.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "Subtitles",
+        "Extra people",
+        "Anachronistic props",
+        "Soft dissolves",
+        "Redesigned reference",
+        "Cel shading",
+        "Digital gloss"
+      ],
+      "duration": 15.08,
+      "purpose": "Meher transfers her shawl and blocking direction to Lira, marking the physical and spatial handover of the role.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To guide Lira into the physical space of the role, using the shawl and the mark as anchors.",
+        "obstacle": "Lira's slight uncertainty and the visual gap between Meher's blindness and the stage light.",
+        "stakes": "If the guide is wrong, Lira loses her footing and her confidence.",
+        "physicalBusiness": "Meher unwinds her shawl, touches Lira's shoulder, guides two steps. Lira takes the shawl, feels the moth hole, follows Meher's hand.",
+        "bodyState": "Meher upright, weight on heels. Lira forward on balls of feet, relaxed shoulders.",
+        "eyeLife": "Meher looks toward Lira's voice/sound. Lira checks the mark, then Meher's hand, then the floor.",
+        "subtext": "This is the last time I touch her in this role.",
+        "statusDynamic": "Meher leads, Lira follows; a moment of trust established.",
+        "proxemics": "Close, intimate contact via shawl and shoulder."
+      },
+      "continuationAnchor": "Meher and Lira stand side-by-side on the taped mark, shawl on Lira's shoulders, work light ahead, room quiet."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[3].dialogue[0].exactWords must match an exact spokenLines entry"
+  }
+]

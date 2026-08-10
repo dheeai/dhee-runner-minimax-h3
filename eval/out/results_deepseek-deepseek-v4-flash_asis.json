@@ -1,0 +1,532 @@
+[
+  {
+    "scenario": "scene_04_sec_1",
+    "label": "A · two-hander, Hindi native script, multi-cut",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 26284,
+        "usage": {
+          "prompt_tokens": 4381,
+          "completion_tokens": 2760,
+          "total_tokens": 7141,
+          "cost": 0.0008732682,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.0008732682,
+            "upstream_inference_prompt_cost": 0.0003864042,
+            "upstream_inference_completions_cost": 0.000486864
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 2442,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [],
+      "summary": "[reference generation] A character stands in a location.",
+      "references": [
+        {
+          "id": "character",
+          "type": "character",
+          "appearsAs": "Standing person",
+          "job": "Visible character"
+        },
+        {
+          "id": "location",
+          "type": "location",
+          "appearsAs": "Room",
+          "job": "Environment backdrop"
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_1",
+          "startTime": 0,
+          "endTime": 5,
+          "composition": "Medium shot of character in room",
+          "subjectIds": [
+            "character",
+            "location"
+          ],
+          "action": "Character appears standing.",
+          "cameraMotion": "Static Shot",
+          "sound": "Ambient room tone"
+        }
+      ],
+      "overallSoundscape": "Soft ambient room hum.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [],
+      "duration": 5,
+      "purpose": "Establish character and location.",
+      "shotStructure": "locked_single",
+      "performance": {
+        "objective": "to stand",
+        "obstacle": "none",
+        "stakes": "none",
+        "physicalBusiness": "standing still",
+        "bodyState": "upright",
+        "eyeLife": "looking straight",
+        "voiceProfiles": []
+      }
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].acting is required for character subject(s): character"
+  },
+  {
+    "scenario": "scene_07_sec_2",
+    "label": "B · genuinely silent beat, no dialogue",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 112812,
+        "usage": {
+          "prompt_tokens": 2217,
+          "completion_tokens": 838,
+          "total_tokens": 3055,
+          "cost": 0.000327012,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.000327012,
+            "upstream_inference_prompt_cost": 0.000186228,
+            "upstream_inference_completions_cost": 0.000140784
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "duration": 9.64,
+      "negatives": [
+        "No subtitles",
+        "No extra people beyond what is in references",
+        "No modern or anachronistic props",
+        "No camera dissolves or wipes",
+        "No redesign of the character's face or attire",
+        "No city sounds or crowds"
+      ],
+      "nonDiegeticMusic": "N/A",
+      "overallSoundscape": "Heavy breathing, the quiet shuffle of dust on stone, a distant wind moaning through a narrow crack, the faint sound of a pebble falling.",
+      "performance": {
+        "bodyState": "standing upright but leaning slightly forward, hands clenched at his sides, weight shifting from one foot to the other",
+        "eyeLife": "eyes dart rapidly across the darkness, then fix on a single point in the distance, they widen slightly and stay locked",
+        "objective": "convince the officer that he has seen what he claims, despite the impossible darkness",
+        "obstacle": "the officer's visible skepticism and the absolute blackness that makes the claim unbelievable",
+        "physicalBusiness": "a hand lifts slowly to point, then drops when the officer does not react; he swallows once, audibly",
+        "stakes": "if he fails to make the officer believe him, the threat they both face will be ignored until it is too late",
+        "voiceProfiles": [
+          {
+            "subjectId": "S1",
+            "voicePrompt": "raspy, breathy, with a slight tremor on vowels, matching a voice that has gone long without water and slept little"
+          }
+        ]
+      },
+      "purpose": "This scene lands the first sighting of the approaching threat in the darkness.",
+      "references": [
+        {
+          "appearsAs": "a lean man in a simple tunic and leather vest, unshaven, dark circles under his eyes, one hand raised slightly as if pointing into the dark",
+          "id": "S1",
+          "job": "the witness who sees the threat",
+          "retention": "fully_preserved",
+          "type": "character"
+        },
+        {
+          "appearsAs": "a squat, simple stone watchtower room, no furniture, one narrow window, stone walls rough and unlit",
+          "id": "watchtower_interior",
+          "job": "the space in which the scene happens",
+          "retention": "fully_preserved",
+          "type": "location"
+        }
+      ],
+      "shotStructure": "locked_single",
+      "shots": [
+        {
+          "action": "S1 stands at the window, staring into the absolute darkness outside. He hears nothing, sees nothing, but his breathing quickens. A single point of light flickers far out in the void, then vanishes. He remains still, watching for it again.",
+          "cameraMotion": "Static Shot",
+          "composition": "Medium close-up on S1 from behind and slightly to the left, the rough stone window frame visible at the edge of frame, the void of the landscape barely visible through the opening. S1's profile is in silhouette against the faint starlight from the window.",
+          "endTime": 9.64,
+          "id": "shot_07_01",
+          "sound": "Heavy breathing from S1, the faint scrape of his boots on the stone floor, a single distant pebble falling outside the tower",
+          "startTime": 0,
+          "subjectIds": [
+            "S1",
+            "watchtower_interior"
+          ],
+          "transition": "N/A: first shot of the scene"
+        }
+      ],
+      "spokenLines": [
+        "I saw something."
+      ],
+      "summary": "[reference generation] In a dark watchtower room, a single man stares into the blackness outside and claims he saw a point of light, though nothing is visible now."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "performance.voiceProfiles[0].subjectId \"S1\" is unknown; expected IDs: meher, brass_bell, rehearsal_stage"
+  },
+  {
+    "scenario": "scene_11_sec_1",
+    "label": "C · crowded — 3 characters, 2 objects, location, one state plate",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 38347,
+        "usage": {
+          "prompt_tokens": 2217,
+          "completion_tokens": 939,
+          "total_tokens": 3156,
+          "cost": 0.0009125,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.0009125,
+            "upstream_inference_prompt_cost": 0.0004432057180414065,
+            "upstream_inference_completions_cost": 0.0004692942819585935
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 795,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [],
+      "summary": "[reference generation] A scene with no defined subjects or spoken lines cannot be authored without the scene plan entities, character profiles, and spoken lines.",
+      "references": [
+        {
+          "id": "placeholder_error",
+          "type": "location",
+          "appearsAs": "Generic empty room",
+          "job": "Placeholder because no scene plan was provided",
+          "retention": "weak_reference"
+        }
+      ],
+      "shots": [
+        {
+          "id": "error",
+          "startTime": 0,
+          "endTime": 5,
+          "composition": "Empty frame – no subject defined",
+          "subjectIds": [
+            "placeholder_error"
+          ],
+          "action": "No state change – missing input data",
+          "cameraMotion": "Static Shot",
+          "sound": "Silence"
+        }
+      ],
+      "overallSoundscape": "N/A",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "Authoring cannot proceed without the scene plan, entities, character profiles, and spoken lines."
+      ],
+      "duration": 5,
+      "purpose": "Placeholder scene due to missing source data.",
+      "shotStructure": "locked_single",
+      "performance": {
+        "objective": "N/A",
+        "obstacle": "Missing input",
+        "stakes": "No failure possible without data",
+        "physicalBusiness": "None",
+        "bodyState": "Still",
+        "eyeLife": "None",
+        "voiceProfiles": []
+      }
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is Generic empty room in <Picture 1>. Follow it for Placeholder because no scene plan was provided.\n\nsummary:\n[reference generation] A scene with no defined subjects or spoken lines cannot be authored without the scene plan entities, character profiles, and spoken lines.\n\nretention_analysis:\n<Subject 1>: weak_reference - Placeholder because no scene plan was provided.\n\ndetailed_description:\nPerformance objective: N/A. Obstacle: Missing input. Stakes: No failure possible without data. Physical business: None. Body state: Still. Eye life: None.\n\n[Shot 1] Empty frame – no subject defined Visible subjects: <Subject 1>. Action: No state change – missing input data Camera: Static Shot. Sound: Silence.\n\nNegative directions: Authoring cannot proceed without the scene plan, entities, character profiles, and spoken lines..\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [
+      "scene has authored dialogue but no <d>[Language] ...</d> block",
+      "dialogue present but no (Sx) speaker id",
+      "detailed_description is 61 words (guide: normally 350-500)"
+    ],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": [
+        "plan line never reached the prompt: \"from the top of the scene. understudy on.\"",
+        "plan line never reached the prompt: \"not yet. let me hear it once more.\""
+      ]
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: N/A. Obstacle: Missing input. Stakes: No failure possible without d...\""
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "1 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "critical",
+        "code": "invented-ids",
+        "msg": "references use id(s) not in the section's entity allowlist: placeholder_error (allowed: meher, lira, dhruv, script_bundle, brass_bell, rehearsal_stage)"
+      },
+      {
+        "sev": "critical",
+        "code": "line-not-verbatim",
+        "msg": "2 plan line(s) missing or altered: \"From the top of the scene. Understudy on.\""
+      },
+      {
+        "sev": "low",
+        "code": "off-grid-duration",
+        "msg": "duration 5s = 120f, not on the 17k+5 grid (nearest legal: 124f)"
+      },
+      {
+        "sev": "high",
+        "code": "thin-description",
+        "msg": "detailed_description is 61 words (guide: 350-500 for a generation task)"
+      },
+      {
+        "sev": "med",
+        "code": "budget-drift",
+        "msg": "duration 5s vs plan budgetSec 10.13s"
+      }
+    ],
+    "words": 61
+  },
+  {
+    "scenario": "scene_02_sec_1",
+    "label": "D · single continuous take, English voiceover",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 20060,
+        "usage": {
+          "prompt_tokens": 4670,
+          "completion_tokens": 1764,
+          "total_tokens": 6434,
+          "cost": 0.00112956,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.00112956,
+            "upstream_inference_prompt_cost": 0.00064446,
+            "upstream_inference_completions_cost": 0.0004851
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1309,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "continuationAnchor": "Character stands still in open space, no props, neutral lighting.",
+      "duration": 5,
+      "negatives": [
+        "no subtitles",
+        "no extra characters",
+        "no music",
+        "no camera movement",
+        "no dialogue",
+        "no soft dissolves",
+        "no anachronistic props",
+        "no redesign of the character"
+      ],
+      "nonDiegeticMusic": "N/A",
+      "overallSoundscape": "Silence, with a faint ambient hum if needed for air.",
+      "performance": {
+        "bodyState": "Relaxed, weight evenly distributed, arms at sides.",
+        "eyeLife": "Steady gaze forward, occasional micro-saccades.",
+        "objective": "To stand still and be observed.",
+        "obstacle": "None.",
+        "physicalBusiness": "Standing upright, hands relaxed.",
+        "stakes": "None – this is a static establishing shot.",
+        "voiceProfiles": []
+      },
+      "purpose": "Establish the solitary character in an empty environment.",
+      "references": [
+        {
+          "appearsAs": "A generic human figure, neutral expression, standing.",
+          "id": "character_01",
+          "job": "Main subject for the establishing shot.",
+          "type": "character"
+        }
+      ],
+      "shotStructure": "locked_single",
+      "shots": [
+        {
+          "action": "The character remains motionless from beginning to end.",
+          "cameraMotion": "Static Shot",
+          "composition": "Full-body wide shot, subject centered, minimal background detail.",
+          "endTime": 5,
+          "id": "shot_1",
+          "sound": "No audible sound, absolute silence.",
+          "startTime": 0,
+          "subjectIds": [
+            "character_01"
+          ]
+        }
+      ],
+      "spokenLines": [],
+      "summary": "[reference generation] A single character stands alone in an empty, featureless space. The camera holds a static wide shot for the entire duration, establishing the subject's presence without action or dialogue."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].acting is required for character subject(s): character_01"
+  },
+  {
+    "scenario": "scene_19_sec_3",
+    "label": "E · 15.08s dense multi-cut, one line crossing a cut",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 114393,
+        "usage": {
+          "prompt_tokens": 2217,
+          "completion_tokens": 885,
+          "total_tokens": 3102,
+          "cost": 0.000334908,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.000334908,
+            "upstream_inference_prompt_cost": 0.000186228,
+            "upstream_inference_completions_cost": 0.00014868
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "duration": 9.5,
+      "negatives": [
+        "Do not include subtitles",
+        "Do not add extra people or bystanders",
+        "Do not include anachronistic props",
+        "Do not use soft dissolves",
+        "Do not redesign the reference"
+      ],
+      "nonDiegeticMusic": "N/A",
+      "overallSoundscape": "Distant hum of the hyperloop tunnel, a faint low-frequency vibration, the rustle of fabric as Kaelen adjusts his stance, the soft click of the utility knife opening.",
+      "performance": {
+        "bodyState": "Stands with feet shoulder-width apart, weight slightly forward, arms relaxed but ready to move.",
+        "eyeLife": "Eyes track the handler's hands and face, scanning for micro-expressions and intent.",
+        "objective": "Assess the handler's threat level and communicate readiness without escalating.",
+        "obstacle": "The handler's unpredictable authority and the unknown contents of the case.",
+        "physicalBusiness": "Kaelen opens the utility knife with a controlled thumb flick, then holds it low and slightly to the side, not threatening but visible.",
+        "stakes": "A misstep could trigger a security lockdown or reveal their covert purpose.",
+        "voiceProfiles": [
+          {
+            "subjectId": "kaelen_stanton_main",
+            "voicePrompt": "A steady, measured baritone with a slight rasp, carrying fatigue and resolve. Speaks with clipped precision, each word deliberate, often dropping into a softer register when shifting from guarded to candid."
+          }
+        ]
+      },
+      "purpose": "Kaelen signals readiness by opening his utility knife, establishing a wary standoff with the hyperloop handler.",
+      "references": [
+        {
+          "appearsAs": "A man in his late 20s with a lean build, dark stubble, and watchful eyes. He wears a worn grey jacket and cargo pants, a small utility knife clipped to his belt.",
+          "id": "kaelen_stanton_main",
+          "job": "Primary character, the protagonist making the gesture of opening the knife.",
+          "type": "character"
+        },
+        {
+          "appearsAs": "A sleek, grey-and-blue hyperloop tunnel interior with brushed metal walls, dim overhead strip lights, and a single sealed transport pod at rest.",
+          "id": "hyperloop_tunnel_contellation",
+          "job": "Environment, the confined space where the scene takes place.",
+          "type": "location"
+        }
+      ],
+      "shotStructure": "locked_single",
+      "shots": [
+        {
+          "action": "Kaelen stands opposite a hyperloop handler near the open pod door. He slowly pulls the utility knife from his belt, opens it with a deliberate flick, and holds it at his side, meeting the handler's gaze. The handler remains still, watching.",
+          "cameraMotion": "Static Shot",
+          "composition": "Medium shot from the handler's perspective, slightly low angle, framing Kaelen from chest to just above the head. The tunnel's metal wall and the pod's edge are visible in the background, emphasizing the confined corridor.",
+          "dialogue": [
+            {
+              "delivery": "with a strained breath, low and steady",
+              "exactWords": "I'm ready.",
+              "language": "English",
+              "speakerId": "S1",
+              "subjectId": "kaelen_stanton_main"
+            }
+          ],
+          "endTime": 9.5,
+          "id": "shot_1901",
+          "sound": "The crisp metallic click of the knife locking open, then silence broken only by the distant tunnel hum and slow breathing.",
+          "startTime": 0,
+          "subjectIds": [
+            "kaelen_stanton_main",
+            "hyperloop_tunnel_contellation"
+          ]
+        }
+      ],
+      "spokenLines": [
+        "I'm ready."
+      ],
+      "summary": "[reference generation] Kaelen opens his utility knife in a hyperloop tunnel, signaling readiness to the handler; a tense, wordless beat of assessment follows before he speaks two words of confirmation."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].dialogue[0].subjectId \"kaelen_stanton_main\" is unknown; expected IDs: meher, lira, script_bundle, rehearsal_stage"
+  }
+]

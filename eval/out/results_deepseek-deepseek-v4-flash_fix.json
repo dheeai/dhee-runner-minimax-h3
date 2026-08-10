@@ -1,0 +1,557 @@
+[
+  {
+    "scenario": "scene_04_sec_1",
+    "label": "A · two-hander, Hindi native script, multi-cut",
+    "arm": "fix",
+    "promptChars": 30617,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 356770,
+        "usage": {
+          "prompt_tokens": 7964,
+          "completion_tokens": 20000,
+          "total_tokens": 27964,
+          "cost": 0.00422370984,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.00422370984,
+            "upstream_inference_prompt_cost": 0.00070130984,
+            "upstream_inference_completions_cost": 0.0035224
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1824,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "schemaError": "/references/0/appearsAs must match pattern \"^[^A-Z].*[^.]$\"; /references/0/job must match pattern \"^[^A-Z].*[^.]$\"; /references/1/appearsAs must match pattern \"^[^A-Z].*[^.]$\"; /references/1/job must match pattern \"^[^A-Z].*[^.]$\"; /references/2/appearsAs must match pattern \"^[^A-Z].*[^.]$\"; /references/2/job must match pattern \"^[^A-Z].*[^.]$\"; /references/3/appearsAs must match pattern \"^[^A-Z].*[^.]$\"; /references/3/job must match pattern \"^[^A-Z].*[^.]$\""
+      },
+      {
+        "attempt": 2,
+        "ms": 298224,
+        "usage": {
+          "prompt_tokens": 26335,
+          "completion_tokens": 20000,
+          "total_tokens": 46335,
+          "cost": 0.0092869,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.0092869,
+            "upstream_inference_prompt_cost": 0.0036869,
+            "upstream_inference_completions_cost": 0.0056
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "schemaError": "/shots/0/acting/0 must have required property 'subjectId'; /shots/1/transition must match pattern \"^(the (shot|camera) (cuts?|transitions?|changes?|switches) )\"; /shots/1/acting/0 must have required property 'subjectId'"
+      },
+      {
+        "attempt": 3,
+        "ms": 178568,
+        "usage": {
+          "prompt_tokens": 49225,
+          "completion_tokens": 20001,
+          "total_tokens": 69226,
+          "cost": 0.012293325,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.012293325,
+            "upstream_inference_prompt_cost": 0.00679305,
+            "upstream_inference_completions_cost": 0.005500275
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 222,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "duration": 8,
+      "negatives": [
+        "no subtitles or on-screen text",
+        "no extra people beyond meher and lira",
+        "no anachronistic props or clothing",
+        "no soft dissolves or digital transitions",
+        "no line art or cel shading",
+        "no redesigned references",
+        "no highly saturated colors",
+        "no hard specular highlights"
+      ],
+      "nonDiegeticMusic": "N/A",
+      "overallSoundscape": "quiet rehearsal stage with the low hum of the work light, occasional creak of floorboards, rustle of pages, and soft footsteps on scuffed black paint",
+      "performance": {
+        "bodyState": "meher stands with weight back on heels, chin level, left hand holding the script at arm's length while her right fingers lightly trace the edge of the page; lira is forward on the balls of her feet, script held two-handed against her chest",
+        "eyeLife": "meher's eyes travel toward the script but arrive half a beat late, no micro-saccades; she gives up with a slow blink; lira's eyes flick from meher to the script to the floor, then tighten when meher speaks",
+        "objective": "meher needs to find the line on the page to continue the rehearsal; lira wants to be helpful without presuming she is taking over",
+        "obstacle": "meher's failing sight prevents her from reading the printed text; lira must overcome her fear of overstepping",
+        "physicalBusiness": "meher tilts the script into the work light, squints, then lets it drop slightly; lira takes three silent steps forward, opens the script on her forearm, and points to the line",
+        "stakes": "if meher cannot find the line, she loses her ability to rehearse independently; if lira pushes too hard, she risks damaging the trust with the actress she will replace",
+        "statusDynamic": "meher's authority softens as she admits the limitation; lira's status rises slightly as she becomes the one who can see",
+        "subtext": "both know why meher cannot see; the line is not just a line; it is the proof that she is slipping; lira's offer to read is also an offer to take over",
+        "voiceProfiles": [
+          {
+            "subjectId": "meher",
+            "voicePrompt": "A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels."
+          },
+          {
+            "subjectId": "lira",
+            "voicePrompt": "A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables."
+          }
+        ]
+      },
+      "purpose": "meher asks lira to read the line she can no longer find on the page, and hears her own reading come back better",
+      "references": [
+        {
+          "appearsAs": "61-year-old tall straight-backed woman with silver hair pinned severely, deep-set unfocused eyes, dark green shawl wrapped over her shoulders; she holds a thick open script at arm's length",
+          "id": "meher",
+          "job": "the veteran actress who is losing her sight",
+          "type": "character"
+        },
+        {
+          "appearsAs": "26-year-old small wiry woman with short black hair, wearing a paint-stained grey rehearsal sweater; she holds a dog-eared script open on her forearm",
+          "id": "lira",
+          "job": "the understudy who offers to read the line",
+          "type": "character"
+        },
+        {
+          "appearsAs": "thick playscript with broken spine, pages yellowed, margins dense with pencil annotations, corners furred from handling",
+          "id": "script_bundle",
+          "job": "the annotated script that meher cannot read",
+          "type": "object"
+        },
+        {
+          "appearsAs": "empty proscenium stage with black-painted floor scuffed pale along blocking lines, one bare work light on a metal stand casting a cone of light, faded yellow taped marks on the floor, dark void of the auditorium beyond",
+          "id": "rehearsal_stage",
+          "job": "the bare stage where the rehearsal takes place",
+          "type": "location"
+        }
+      ],
+      "shotStructure": "multi_cut",
+      "shots": [
+        {
+          "action": "meher is alone at the taped mark; she holds the open script toward the single work light, tilting it to catch the light, but her eyes cannot focus; she lowers the script slightly and speaks with tired frustration",
+          "acting": [
+            {
+              "subjectId": "meher",
+              "beatChange": "from frustrated searching to resigned admission",
+              "observableBehavior": "tilts script toward light, squints, then lets her arms drop a few inches as she gives up and asks",
+              "tactic": "trying to see the words, then admitting defeat"
+            }
+          ],
+          "cameraMotion": "Static Shot",
+          "composition": "medium shot framing meher from chest up, the open script held toward camera-left where the work light sits; the dark green shawl visible on her shoulders, the stage floor and work light base in the lower part of the frame",
+          "dialogue": [
+            {
+              "delivery": "with tired frustration, voice controlled but strained",
+              "exactWords": "यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।",
+              "language": "Hindi",
+              "speakerId": "S1",
+              "subjectId": "meher"
+            }
+          ],
+          "endTime": 4,
+          "id": "scene_04_sec_1_shot_1",
+          "sound": "quiet hum of the work light, faint rustle of paper as meher tilts the script",
+          "startTime": 0,
+          "subjectIds": [
+            "meher",
+            "script_bundle",
+            "rehearsal_stage"
+          ]
+        },
+        {
+          "action": "lira is downstage, three steps closer than before; she has her script open on her forearm and points to the bottom of the third page; she speaks tentatively, eager to help",
+          "acting": [
+            {
+              "subjectId": "lira",
+              "beatChange": "from waiting in the wings to stepping forward and offering assistance",
+              "observableBehavior": "takes a step closer, opens script on forearm, points to the line, then lifts her eyes to check meher's reaction",
+              "tactic": "offering help without pushing"
+            }
+          ],
+          "cameraMotion": "Static Shot",
+          "composition": "medium shot framing lira from chest up, script open on her forearm, the dog-eared pages visible; she stands against the black void of the auditorium behind the work light's spill",
+          "dialogue": [
+            {
+              "delivery": "tentatively, a slight upward inflection as if asking permission",
+              "exactWords": "तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?",
+              "language": "Hindi",
+              "speakerId": "S2",
+              "subjectId": "lira"
+            }
+          ],
+          "endTime": 8,
+          "id": "scene_04_sec_1_shot_2",
+          "sound": "soft footsteps on the scuffed floor as lira steps into position",
+          "startTime": 4,
+          "subjectIds": [
+            "lira",
+            "script_bundle",
+            "rehearsal_stage"
+          ],
+          "transition": "the shot cuts to lira, revealing she has already moved closer during meher's struggle, emphasizing her readiness"
+        }
+      ],
+      "spokenLines": [
+        "यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।",
+        "तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?"
+      ],
+      "style": "hand-painted gouache illustration with visible brush texture, muted desaturated palette (dusty ochre, slate blue, faded terracotta), soft diffuse light with no hard specular highlights; cinematic 2.39:1 framing sensibility; skin rendered in warm mid-tones with cool shadow",
+      "summary": "[reference generation] meher, at the taped mark on the rehearsal stage, holds the open script toward the work light and admits she cannot see the line; lira, already closer than before, offers to read it from the third page bottom"
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is 61-year-old tall straight-backed woman with silver hair pinned severely, deep-set unfocused eyes, dark green shawl wrapped over her shoulders; she holds a thick open script at arm's length in <Picture 1>. Follow it for the veteran actress who is losing her sight.\n<Subject 2> is 26-year-old small wiry woman with short black hair, wearing a paint-stained grey rehearsal sweater; she holds a dog-eared script open on her forearm in <Picture 2>. Follow it for the understudy who offers to read the line.\n<Subject 3> is thick playscript with broken spine, pages yellowed, margins dense with pencil annotations, corners furred from handling in <Picture 3>. Follow it for the annotated script that meher cannot read.\n<Subject 4> is empty proscenium stage with black-painted floor scuffed pale along blocking lines, one bare work light on a metal stand casting a cone of light, faded yellow taped marks on the floor, dark void of the auditorium beyond in <Picture 4>. Follow it for the bare stage where the rehearsal takes place.\n\nsummary:\n[reference generation] meher, at the taped mark on the rehearsal stage, holds the open script toward the work light and admits she cannot see the line; lira, already closer than before, offers to read it from the third page bottom\n\nretention_analysis:\n<Subject 1>: fully_preserved - the veteran actress who is losing her sight.\n<Subject 2>: fully_preserved - the understudy who offers to read the line.\n<Subject 3>: fully_preserved - the annotated script that meher cannot read.\n<Subject 4>: fully_preserved - the bare stage where the rehearsal takes place.\n\ndetailed_description:\nPerformance objective: meher needs to find the line on the page to continue the rehearsal; lira wants to be helpful without presuming she is taking over. Obstacle: meher's failing sight prevents her from reading the printed text; lira must overcome her fear of overstepping. Stakes: if meher cannot find the line, she loses her ability to rehearse independently; if lira pushes too hard, she risks damaging the trust with the actress she will replace. Physical business: meher tilts the script into the work light, squints, then lets it drop slightly; lira takes three silent steps forward, opens the script on her forearm, and points to the line. Body state: meher stands with weight back on heels, chin level, left hand holding the script at arm's length while her right fingers lightly trace the edge of the page; lira is forward on the balls of her feet, script held two-handed against her chest. Eye life: meher's eyes travel toward the script but arrive half a beat late, no micro-saccades; she gives up with a slow blink; lira's eyes flick from meher to the script to the floor, then tighten when meher speaks. Subtext: both know why meher cannot see; the line is not just a line; it is the proof that she is slipping; lira's offer to read is also an offer to take over. Status dynamic: meher's authority softens as she admits the limitation; lira's status rises slightly as she becomes the one who can see.\n\n[Shot 1] medium shot framing meher from chest up, the open script held toward camera-left where the work light sits; the dark green shawl visible on her shoulders, the stage floor and work light base in the lower part of the frame Visible subjects: <Subject 1>, <Subject 3>, <Subject 4>. Action: meher is alone at the taped mark; she holds the open script toward the single work light, tilting it to catch the light, but her eyes cannot focus; she lowers the script slightly and speaks with tired frustration Camera: Static Shot. Sound: quiet hum of the work light, faint rustle of paper as meher tilts the script. <Subject 1> Acting: Tactic: trying to see the words, then admitting defeat. Observable behavior: tilts script toward light, squints, then lets her arms drop a few inches as she gives up and asks. Beat change: from frustrated searching to resigned admission. Voice identity for <Subject 1>: A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels. <Subject 1> (S1) says with tired frustration, voice controlled but strained: <d>[Hindi] यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।</d>\n\n[Shot 2] At 00:04.000, the shot cuts to lira, revealing she has already moved closer during meher's struggle, emphasizing her readiness medium shot framing lira from chest up, script open on her forearm, the dog-eared pages visible; she stands against the black void of the auditorium behind the work light's spill Visible subjects: <Subject 2>, <Subject 3>, <Subject 4>. Action: lira is downstage, three steps closer than before; she has her script open on her forearm and points to the bottom of the third page; she speaks tentatively, eager to help Camera: Static Shot. Sound: soft footsteps on the scuffed floor as lira steps into position. <Subject 2> Acting: Tactic: offering help without pushing. Observable behavior: takes a step closer, opens script on forearm, points to the line, then lifts her eyes to check meher's reaction. Beat change: from waiting in the wings to stepping forward and offering assistance. Voice identity for <Subject 2>: A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables. <Subject 2> (S2) says tentatively, a slight upward inflection as if asking permission: <d>[Hindi] तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?</d>\n\nNegative directions: no subtitles or on-screen text; no extra people beyond meher and lira; no anachronistic props or clothing; no soft dissolves or digital transitions; no line art or cel shading; no redesigned references; no highly saturated colors; no hard specular highlights.\n\noverall_soundscape:\nquiet rehearsal stage with the low hum of the work light, occasional creak of floorboards, rustle of pages, and soft footsteps on scuffed black paint\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": []
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "med",
+        "code": "style-authored-but-dropped",
+        "msg": "the model authored a style opening (\"hand-painted gouache illustration with visible brush texture, muted de...\") but compileStructuredScenePrompt() has no case for it, so it never reaches the prompt — needs a one-line runner change"
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "2 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      }
+    ],
+    "words": 695
+  },
+  {
+    "scenario": "scene_07_sec_2",
+    "label": "B · genuinely silent beat, no dialogue",
+    "arm": "fix",
+    "promptChars": 30617,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 655503,
+        "usage": {
+          "prompt_tokens": 10704,
+          "completion_tokens": 15000,
+          "total_tokens": 25704,
+          "cost": 0.00344928,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.00344928,
+            "upstream_inference_prompt_cost": 0.00074928,
+            "upstream_inference_completions_cost": 0.0027
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "schemaError": "<root> must have required property 'spokenLines'; <root> must have required property 'style'; <root> must have required property 'summary'; <root> must have required property 'shots'; <root> must have required property 'shotStructure'; <root> must NOT have additional properties; <root> must NOT have additional properties; <root> must NOT have additional properties"
+      },
+      {
+        "attempt": 2,
+        "transportError": "terminated"
+      }
+    ],
+    "outcome": "never-validated"
+  },
+  {
+    "scenario": "scene_11_sec_1",
+    "label": "C · crowded — 3 characters, 2 objects, location, one state plate",
+    "arm": "fix",
+    "promptChars": 30617,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 654349,
+        "usage": {
+          "prompt_tokens": 10704,
+          "completion_tokens": 15000,
+          "total_tokens": 25704,
+          "cost": 0.00344928,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.00344928,
+            "upstream_inference_prompt_cost": 0.00074928,
+            "upstream_inference_completions_cost": 0.0027
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "schemaError": "<root> must have required property 'spokenLines'; <root> must have required property 'style'; <root> must have required property 'summary'; <root> must have required property 'shotStructure'; <root> must NOT have additional properties; /references/0 must have required property 'id'; /references/0 must have required property 'type'; /references/0 must have required property 'job'"
+      },
+      {
+        "attempt": 2,
+        "transportError": "terminated"
+      }
+    ],
+    "outcome": "never-validated"
+  },
+  {
+    "scenario": "scene_02_sec_1",
+    "label": "D · single continuous take, English voiceover",
+    "arm": "fix",
+    "promptChars": 30617,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 128434,
+        "usage": {
+          "prompt_tokens": 7966,
+          "completion_tokens": 16074,
+          "total_tokens": 24040,
+          "cost": 0,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.005375276,
+            "upstream_inference_prompt_cost": 0.001067444,
+            "upstream_inference_completions_cost": 0.004307832
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 2727,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "duration": 7,
+      "negatives": [
+        "No other people in the frame",
+        "No subtitle or text overlay",
+        "No score or non-diegetic music",
+        "Lira's mouth must not move during the voiceover",
+        "No reflection that moves independently of Lira",
+        "No soft dissolves or transitions"
+      ],
+      "nonDiegeticMusic": "N/A",
+      "overallSoundscape": "The room is silent except for the low electrical hum of the half-dead mirror bulbs and the faint sound of Lira's own breathing. The dead air of an empty green room.",
+      "performance": {
+        "bodyState": "Sitting forward in the armchair, shoulders slightly hunched, hands clasped over the closed script on her knees, weight on the balls of her feet.",
+        "eyeLife": "Rapid target changes: first her own eyes in the mirror, then the script, then the floor; blinks tight and often, eyes lead every thought before she speaks the line internally.",
+        "objective": "To admit the truth of her ambition to herself.",
+        "obstacle": "Her own guilt at wanting the role that belongs to Meher.",
+        "physicalBusiness": "Holding the closed script on her knees, sitting still, facing the mirror.",
+        "proxemics": "N/A, alone.",
+        "stakes": "If she cannot admit it, she cannot fully claim the part.",
+        "statusDynamic": "None, she is alone.",
+        "subtext": "The line is spoken aloud in her mind but not on her lips; the confession is to herself.",
+        "voiceProfiles": [
+          {
+            "subjectId": "lira",
+            "voicePrompt": "A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables."
+          }
+        ]
+      },
+      "purpose": "Lira, alone in the green room, admits to herself what she is rehearsing for.",
+      "references": [
+        {
+          "appearsAs": "a small young woman in a paint-stained grey rehearsal sweater, black hair cropped short, sitting in a mismatched armchair",
+          "id": "lira",
+          "job": "her posture, her stillness, her reflection",
+          "type": "character"
+        },
+        {
+          "appearsAs": "a dog-eared script with a broken spine, closed on her knees",
+          "id": "script_bundle",
+          "job": "its worn edges and density of pencil marks",
+          "type": "object"
+        },
+        {
+          "appearsAs": "a narrow windowless room with a mirror wall and half-dead bulbs, two mismatched armchairs",
+          "id": "green_room",
+          "job": "the flat, contained atmosphere of the green room",
+          "type": "location"
+        }
+      ],
+      "shotStructure": "locked_single",
+      "shots": [
+        {
+          "action": "Lira is sitting at the beginning, looking at her reflection; at the end she has shifted her gaze fractionally downward, acknowledging the line inside herself.",
+          "acting": [
+            {
+              "assessmentMoment": "She takes in her own image in the mirror, the silent room, the weight of the script.",
+              "beatChange": "At the end of the line, her eyes drop to the script, a visible acceptance of the purpose she has been denying.",
+              "observableBehavior": "She sits very still, her hands clasped over the closed script, her gaze fixed on her own reflection, blinking slowly.",
+              "subjectId": "lira",
+              "tactic": "to confront the truth she has been avoiding"
+            }
+          ],
+          "cameraMotion": "Static Shot",
+          "composition": "Tight medium shot of Lira seated in the armchair, facing the mirror, script on her knees, the half-lit mirror wall behind her, her reflection visible.",
+          "dialogue": [
+            {
+              "delivery": "as a voiceover, her mouth motionless",
+              "exactWords": "I learned her part before anyone asked me to.",
+              "language": "English",
+              "speakerId": "S1",
+              "subjectId": "lira"
+            }
+          ],
+          "endTime": 7,
+          "id": "scene_02_sec_1_shot_1",
+          "sound": "The faint hum of the dead bulbs, the rustle of her sweater as she settles.",
+          "startTime": 0,
+          "subjectIds": [
+            "lira",
+            "script_bundle",
+            "green_room"
+          ]
+        }
+      ],
+      "spokenLines": [
+        "I learned her part before anyone asked me to."
+      ],
+      "style": "Hand-painted gouache illustration with a muted desaturated palette of dusty ochre, slate blue, and faded terracotta, soft diffuse light, visible brush texture and paper grain.",
+      "summary": "[reference generation] Lira sits alone in the green room, holding a closed script, facing the mirror. The camera holds a tight medium shot while she admits to herself the truth of her ambition through a voiceover line. The scene is a single locked take, emphasizing her stillness and the weight of the moment."
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is a small young woman in a paint-stained grey rehearsal sweater, black hair cropped short, sitting in a mismatched armchair in <Picture 1>. Follow it for her posture, her stillness, her reflection.\n<Subject 2> is a dog-eared script with a broken spine, closed on her knees in <Picture 2>. Follow it for its worn edges and density of pencil marks.\n<Subject 3> is a narrow windowless room with a mirror wall and half-dead bulbs, two mismatched armchairs in <Picture 3>. Follow it for the flat, contained atmosphere of the green room.\n\nsummary:\n[reference generation] Lira sits alone in the green room, holding a closed script, facing the mirror. The camera holds a tight medium shot while she admits to herself the truth of her ambition through a voiceover line. The scene is a single locked take, emphasizing her stillness and the weight of the moment.\n\nretention_analysis:\n<Subject 1>: fully_preserved - her posture, her stillness, her reflection.\n<Subject 2>: fully_preserved - its worn edges and density of pencil marks.\n<Subject 3>: fully_preserved - the flat, contained atmosphere of the green room.\n\ndetailed_description:\nPerformance objective: To admit the truth of her ambition to herself.. Obstacle: Her own guilt at wanting the role that belongs to Meher.. Stakes: If she cannot admit it, she cannot fully claim the part.. Physical business: Holding the closed script on her knees, sitting still, facing the mirror.. Body state: Sitting forward in the armchair, shoulders slightly hunched, hands clasped over the closed script on her knees, weight on the balls of her feet.. Eye life: Rapid target changes: first her own eyes in the mirror, then the script, then the floor; blinks tight and often, eyes lead every thought before she speaks the line internally.. Subtext: The line is spoken aloud in her mind but not on her lips; the confession is to herself.. Status dynamic: None, she is alone.. Proxemics: N/A, alone..\n\n[Shot 1] Tight medium shot of Lira seated in the armchair, facing the mirror, script on her knees, the half-lit mirror wall behind her, her reflection visible. Visible subjects: <Subject 1>, <Subject 2>, <Subject 3>. Action: Lira is sitting at the beginning, looking at her reflection; at the end she has shifted her gaze fractionally downward, acknowledging the line inside herself. Camera: Static Shot. Sound: The faint hum of the dead bulbs, the rustle of her sweater as she settles.. <Subject 1> Acting: Tactic: to confront the truth she has been avoiding. Observable behavior: She sits very still, her hands clasped over the closed script, her gaze fixed on her own reflection, blinking slowly.. Beat change: At the end of the line, her eyes drop to the script, a visible acceptance of the purpose she has been denying.. Assessment moment: She takes in her own image in the mirror, the silent room, the weight of the script.. Voice identity for <Subject 1>: A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables. <Subject 1> (S1) says as a voiceover, her mouth motionless: <d>[English] I learned her part before anyone asked me to.</d>\n\nNegative directions: No other people in the frame; No subtitle or text overlay; No score or non-diegetic music; Lira's mouth must not move during the voiceover; No reflection that moves independently of Lira; No soft dissolves or transitions.\n\noverall_soundscape:\nThe room is silent except for the low electrical hum of the half-dead mirror bulbs and the faint sound of Lira's own breathing. The dead air of an empty green room.\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": []
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "med",
+        "code": "style-authored-but-dropped",
+        "msg": "the model authored a style opening (\"Hand-painted gouache illustration with a muted desaturated palette of ...\") but compileStructuredScenePrompt() has no case for it, so it never reaches the prompt — needs a one-line runner change"
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "1 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "high",
+        "code": "no-vo-phrase",
+        "msg": "plan marks a voiceover but the compiled prose lacks the guide's required exact phrase \"says in an off-screen voiceover\""
+      },
+      {
+        "sev": "med",
+        "code": "no-lips-closed",
+        "msg": "voiceover present with no lips-remain-closed statement (base guide 4.4 requires it immediately after the <d> block)"
+      },
+      {
+        "sev": "low",
+        "code": "off-grid-duration",
+        "msg": "duration 7s = 168f, not on the 17k+5 grid (nearest legal: 175f)"
+      }
+    ],
+    "words": 382
+  },
+  {
+    "scenario": "scene_19_sec_3",
+    "label": "E · 15.08s dense multi-cut, one line crossing a cut",
+    "arm": "fix",
+    "promptChars": 30617,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 332987,
+        "usage": {
+          "prompt_tokens": 7964,
+          "completion_tokens": 20000,
+          "total_tokens": 27964,
+          "cost": 0.00422370984,
+          "is_byok": false,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "cost_details": {
+            "upstream_inference_cost": 0.00422370984,
+            "upstream_inference_prompt_cost": 0.00070130984,
+            "upstream_inference_completions_cost": 0.0035224
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 4729,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          }
+        },
+        "schemaError": "<root> must NOT have additional properties; /references/0/job must match pattern \"^[^A-Z].*[^.]$\"; /references/1/job must match pattern \"^[^A-Z].*[^.]$\"; /references/2/job must match pattern \"^[^A-Z].*[^.]$\"; /references/3/job must match pattern \"^[^A-Z].*[^.]$\"; /shots/0/acting/0 must have required property 'observableBehavior'; /shots/0/acting/0 must NOT have additional properties; /shots/0/acting/0 must NOT have additional properties"
+      },
+      {
+        "attempt": 2,
+        "transportError": "terminated"
+      }
+    ],
+    "outcome": "never-validated"
+  }
+]

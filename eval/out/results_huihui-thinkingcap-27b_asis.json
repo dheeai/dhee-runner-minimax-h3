@@ -1,0 +1,662 @@
+[
+  {
+    "scenario": "scene_04_sec_1",
+    "label": "A · two-hander, Hindi native script, multi-cut",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 6814,
+        "usage": {
+          "completion_tokens": 778,
+          "prompt_tokens": 2262,
+          "total_tokens": 3040,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "[]",
+        "It is done."
+      ],
+      "summary": "[reference generation] A static interior moment where the Protagonist confirms a completed task, focusing on their physical relief and the immediate environment.",
+      "references": [
+        {
+          "id": "protagonist",
+          "type": "character",
+          "appearsAs": "Mid-40s female, wearing a dusty field jacket, shoulders dropping in relief.",
+          "job": "Primary actor confirming task completion."
+        },
+        {
+          "id": "workbench",
+          "type": "object",
+          "appearsAs": "Cluttered wooden surface with tools and a finished mechanism.",
+          "job": "Context for the completed task."
+        }
+      ],
+      "shots": [
+        {
+          "id": "S1",
+          "startTime": 0,
+          "endTime": 5.5,
+          "composition": "Medium shot, eye level. Protagonist stands center frame, facing slightly right. Workbench visible in foreground left.",
+          "subjectIds": [
+            "protagonist",
+            "workbench"
+          ],
+          "action": "Protagonist finishes adjusting a tool, sets it down, and exhales visibly.",
+          "cameraMotion": "Static Shot",
+          "sound": "Clatter of metal tool on wood, followed by a soft exhale.",
+          "dialogue": []
+        },
+        {
+          "id": "S2",
+          "startTime": 5.5,
+          "endTime": 10,
+          "composition": "Close-up on Protagonist's face. Lighting highlights sweat on forehead.",
+          "subjectIds": [
+            "protagonist"
+          ],
+          "action": "Protagonist looks directly at the camera/viewer, lips parting slightly before speaking.",
+          "cameraMotion": "Static Shot",
+          "sound": "Silence, except for the character's voice.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "protagonist",
+              "language": "English",
+              "exactWords": "It is done.",
+              "delivery": "quietly, with relief"
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Quiet workshop ambience, distant wind outside, subtle fabric rustle.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "subtitles",
+        "other people",
+        "text overlays",
+        "bright sunlight",
+        "animated camera"
+      ],
+      "duration": 10,
+      "purpose": "Confirm the completion of the mechanical task.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To signal finality and relief to the unseen observer.",
+        "obstacle": "Physical exhaustion from the long repair.",
+        "stakes": "Validation of effort.",
+        "physicalBusiness": "Setting down the tool, exhaling.",
+        "bodyState": "Tense then relaxing.",
+        "eyeLife": "Looking at work, then direct engagement.",
+        "voiceProfiles": [
+          {
+            "subjectId": "protagonist",
+            "voicePrompt": "Warm, mid-range female voice, calm and grounded."
+          }
+        ]
+      }
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[1].dialogue[0].subjectId \"protagonist\" is unknown; expected IDs: meher, lira, script_bundle, rehearsal_stage"
+  },
+  {
+    "scenario": "scene_07_sec_2",
+    "label": "B · genuinely silent beat, no dialogue",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 13704,
+        "usage": {
+          "completion_tokens": 913,
+          "prompt_tokens": 2262,
+          "total_tokens": 3175,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "The bridge is out."
+      ],
+      "summary": "[reference generation] The traveler discovers the bridge is destroyed, forcing a detour. The scene establishes the immediate obstacle through visual confirmation and spoken realization.",
+      "references": [
+        {
+          "id": "traveler",
+          "type": "character",
+          "appearsAs": "A weary figure in a long coat, standing at the edge of a chasm.",
+          "job": "Protagonist reacting to the obstacle.",
+          "retention": "fully_preserved"
+        },
+        {
+          "id": "bridge",
+          "type": "object",
+          "appearsAs": "A stone archway broken in half, with rubble scattered into the gorge below.",
+          "job": "The primary physical obstacle blocking the path.",
+          "retention": "fully_preserved"
+        },
+        {
+          "id": "gorge",
+          "type": "location",
+          "appearsAs": "A deep, shadowed canyon with rushing water far below.",
+          "job": "The environment providing scale and danger.",
+          "retention": "fully_preserved"
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_01",
+          "startTime": 0,
+          "endTime": 2.5,
+          "composition": "Wide shot showing the traveler small against the vast gorge; the broken bridge spans the left side, the right side is empty air.",
+          "subjectIds": [
+            "traveler",
+            "bridge",
+            "gorge"
+          ],
+          "action": "The traveler steps forward to the edge, stopping abruptly as they see the break.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind whistling across the gorge, distant water roar.",
+          "dialogue": []
+        },
+        {
+          "id": "shot_02",
+          "startTime": 2.5,
+          "endTime": 6,
+          "composition": "Medium close-up of the traveler from the chest up, looking down and slightly right at the broken span.",
+          "subjectIds": [
+            "traveler",
+            "bridge"
+          ],
+          "action": "The traveler processes the visual information, shoulders dropping slightly in realization.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind continues, faint footstep scuff.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "traveler",
+              "language": "English",
+              "exactWords": "The bridge is out.",
+              "delivery": "quietly"
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Persistent wind and the low roar of the river below; natural outdoor ambience with no artificial noise.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "subtitles",
+        "other people",
+        "birds",
+        "soft focus background"
+      ],
+      "duration": 6,
+      "purpose": "The traveler confirms the path is blocked by the destroyed bridge.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To assess the passage ahead.",
+        "obstacle": "The physical destruction of the bridge.",
+        "stakes": "Must find an alternative route or delay progress.",
+        "physicalBusiness": "Stopping abruptly, looking down, slight slump of shoulders.",
+        "bodyState": "Weary but alert.",
+        "eyeLife": "Scanning the gap, then focusing on the break point.",
+        "voiceProfiles": [
+          {
+            "subjectId": "traveler",
+            "voicePrompt": "Weary, grounded baritone with slight breathiness."
+          }
+        ]
+      },
+      "continuationAnchor": "Traveler standing at the edge, looking at the break; wind blowing coat slightly."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[1].dialogue[0].subjectId \"traveler\" is unknown; expected IDs: meher, brass_bell, rehearsal_stage"
+  },
+  {
+    "scenario": "scene_11_sec_1",
+    "label": "C · crowded — 3 characters, 2 objects, location, one state plate",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 12286,
+        "usage": {
+          "completion_tokens": 654,
+          "prompt_tokens": 2262,
+          "total_tokens": 2916,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [],
+      "summary": "[reference generation] Establishing the quiet interior of the study with rain outside, focusing on the desk and the single lamp providing focused light.",
+      "references": [
+        {
+          "id": "desk",
+          "type": "object",
+          "appearsAs": "A sturdy wooden desk with scattered papers and a glass of water.",
+          "job": "Primary workspace and surface for props.",
+          "retention": "fully_preserved"
+        },
+        {
+          "id": "lamp",
+          "type": "object",
+          "appearsAs": "A brass desk lamp casting a warm, focused cone of light.",
+          "job": "Key light source creating high contrast.",
+          "retention": "fully_preserved"
+        },
+        {
+          "id": "study_interior",
+          "type": "location",
+          "appearsAs": "A dimly lit, book-lined study with rain streaking the window.",
+          "job": "Environment setting the mood of isolation and focus.",
+          "retention": "fully_preserved"
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_1",
+          "startTime": 0,
+          "endTime": 10.5,
+          "composition": "Medium shot centered on the desk. The lamp is on the left, illuminating the papers. The window with rain is visible in the blurred background right.",
+          "subjectIds": [
+            "desk",
+            "lamp",
+            "study_interior"
+          ],
+          "action": "Static hold on the still life. The rain streaks continue to move on the window, but the desk and lamp remain motionless.",
+          "cameraMotion": "Static Shot",
+          "sound": "Steady sound of rain hitting the windowpane and a faint, low hum of the lamp."
+        }
+      ],
+      "overallSoundscape": "Continuous, rhythmic rain against glass; subtle electrical hum from the lamp; deep room silence otherwise.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No characters present",
+        "No subtitles",
+        "No warm sunlight",
+        "No movement on the desk"
+      ],
+      "duration": 10.5,
+      "purpose": "Establish the isolated, quiet atmosphere of the study before the character enters.",
+      "shotStructure": "locked_single",
+      "performance": {
+        "objective": "To establish a mood of quiet anticipation.",
+        "obstacle": "The stillness must feel active, not empty.",
+        "stakes": "Setting the baseline for subsequent tension.",
+        "physicalBusiness": "None, as no characters are present.",
+        "bodyState": "N/A",
+        "eyeLife": "N/A",
+        "voiceProfiles": []
+      }
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is A sturdy wooden desk with scattered papers and a glass of water. in <Picture 1>. Follow it for Primary workspace and surface for props..\n<Subject 2> is A brass desk lamp casting a warm, focused cone of light. in <Picture 2>. Follow it for Key light source creating high contrast..\n<Subject 3> is A dimly lit, book-lined study with rain streaking the window. in <Picture 3>. Follow it for Environment setting the mood of isolation and focus..\n\nsummary:\n[reference generation] Establishing the quiet interior of the study with rain outside, focusing on the desk and the single lamp providing focused light.\n\nretention_analysis:\n<Subject 1>: fully_preserved - Primary workspace and surface for props..\n<Subject 2>: fully_preserved - Key light source creating high contrast..\n<Subject 3>: fully_preserved - Environment setting the mood of isolation and focus..\n\ndetailed_description:\nPerformance objective: To establish a mood of quiet anticipation.. Obstacle: The stillness must feel active, not empty.. Stakes: Setting the baseline for subsequent tension.. Physical business: None, as no characters are present.. Body state: N/A. Eye life: N/A.\n\n[Shot 1] Medium shot centered on the desk. The lamp is on the left, illuminating the papers. The window with rain is visible in the blurred background right. Visible subjects: <Subject 1>, <Subject 2>, <Subject 3>. Action: Static hold on the still life. The rain streaks continue to move on the window, but the desk and lamp remain motionless. Camera: Static Shot. Sound: Steady sound of rain hitting the windowpane and a faint, low hum of the lamp..\n\nNegative directions: No characters present; No subtitles; No warm sunlight; No movement on the desk.\n\noverall_soundscape:\nContinuous, rhythmic rain against glass; subtle electrical hum from the lamp; deep room silence otherwise.\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [
+      "scene has authored dialogue but no <d>[Language] ...</d> block",
+      "dialogue present but no (Sx) speaker id",
+      "detailed_description is 131 words (guide: normally 350-500)"
+    ],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": [
+        "plan line never reached the prompt: \"from the top of the scene. understudy on.\"",
+        "plan line never reached the prompt: \"not yet. let me hear it once more.\""
+      ]
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: To establish a mood of quiet anticipation.. Obstacle: The stillness...\""
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "1 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "critical",
+        "code": "invented-ids",
+        "msg": "references use id(s) not in the section's entity allowlist: desk, lamp, study_interior (allowed: meher, lira, dhruv, script_bundle, brass_bell, rehearsal_stage)"
+      },
+      {
+        "sev": "critical",
+        "code": "line-not-verbatim",
+        "msg": "2 plan line(s) missing or altered: \"From the top of the scene. Understudy on.\""
+      },
+      {
+        "sev": "low",
+        "code": "off-grid-duration",
+        "msg": "duration 10.5s = 252f, not on the 17k+5 grid (nearest legal: 260f)"
+      },
+      {
+        "sev": "high",
+        "code": "thin-description",
+        "msg": "detailed_description is 131 words (guide: 350-500 for a generation task)"
+      }
+    ],
+    "words": 131
+  },
+  {
+    "scenario": "scene_02_sec_1",
+    "label": "D · single continuous take, English voiceover",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 9458,
+        "usage": {
+          "completion_tokens": 435,
+          "prompt_tokens": 2262,
+          "total_tokens": 2697,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [],
+      "summary": "[reference generation] A static wide shot establishes the empty stone corridor before the traveler enters, setting a tone of isolation.",
+      "references": [
+        {
+          "id": "corridor",
+          "type": "location",
+          "appearsAs": "A long, dimly lit stone corridor with arched ceilings and distant torchlight.",
+          "job": "The environment establishing spatial depth and atmosphere."
+        }
+      ],
+      "shots": [
+        {
+          "id": "S1",
+          "startTime": 0,
+          "endTime": 5.08,
+          "composition": "Wide angle, eye-level view looking down the empty corridor. The vanishing point is in the center distance.",
+          "subjectIds": [
+            "corridor"
+          ],
+          "action": "The scene is static; no characters are present. Dust motes drift in the shafts of light.",
+          "cameraMotion": "Static Shot",
+          "sound": "Low ambient hum of the stone structure and faint distant echo."
+        }
+      ],
+      "overallSoundscape": "Quiet, cavernous ambience with a slight reverb, emphasizing emptiness.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "people",
+        "movement",
+        "text overlays",
+        "modern lighting"
+      ],
+      "duration": 5.08,
+      "purpose": "To establish the isolated setting before the protagonist's arrival.",
+      "shotStructure": "locked_single",
+      "performance": {
+        "objective": "Establish mood",
+        "obstacle": "Empty space",
+        "stakes": "Atmosphere",
+        "physicalBusiness": "None",
+        "bodyState": "Static environment",
+        "eyeLife": "N/A",
+        "voiceProfiles": []
+      }
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is A long, dimly lit stone corridor with arched ceilings and distant torchlight. in <Picture 1>. Follow it for The environment establishing spatial depth and atmosphere..\n\nsummary:\n[reference generation] A static wide shot establishes the empty stone corridor before the traveler enters, setting a tone of isolation.\n\nretention_analysis:\n<Subject 1>: fully_preserved - The environment establishing spatial depth and atmosphere..\n\ndetailed_description:\nPerformance objective: Establish mood. Obstacle: Empty space. Stakes: Atmosphere. Physical business: None. Body state: Static environment. Eye life: N/A.\n\n[Shot 1] Wide angle, eye-level view looking down the empty corridor. The vanishing point is in the center distance. Visible subjects: <Subject 1>. Action: The scene is static; no characters are present. Dust motes drift in the shafts of light. Camera: Static Shot. Sound: Low ambient hum of the stone structure and faint distant echo..\n\nNegative directions: people; movement; text overlays; modern lighting.\n\noverall_soundscape:\nQuiet, cavernous ambience with a slight reverb, emphasizing emptiness.\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [
+      "scene has authored dialogue but no <d>[Language] ...</d> block",
+      "dialogue present but no (Sx) speaker id",
+      "detailed_description is 82 words (guide: normally 350-500)"
+    ],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": [
+        "plan line never reached the prompt: \"i learned her part before anyone asked me to.\""
+      ]
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: Establish mood. Obstacle: Empty space. Stakes: Atmosphere. Physical...\""
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "1 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "med",
+        "code": "negatives-as-nouns",
+        "msg": "4/4 negatives are bare nouns in positive prose (e.g. \"people\") — H3 has no negative conditioning, so these read as content to render"
+      },
+      {
+        "sev": "high",
+        "code": "no-vo-phrase",
+        "msg": "plan marks a voiceover but the compiled prose lacks the guide's required exact phrase \"says in an off-screen voiceover\""
+      },
+      {
+        "sev": "med",
+        "code": "no-lips-closed",
+        "msg": "voiceover present with no lips-remain-closed statement (base guide 4.4 requires it immediately after the <d> block)"
+      },
+      {
+        "sev": "critical",
+        "code": "invented-ids",
+        "msg": "references use id(s) not in the section's entity allowlist: corridor (allowed: lira, script_bundle, green_room)"
+      },
+      {
+        "sev": "critical",
+        "code": "line-not-verbatim",
+        "msg": "1 plan line(s) missing or altered: \"I learned her part before anyone asked me to.\""
+      },
+      {
+        "sev": "low",
+        "code": "off-grid-duration",
+        "msg": "duration 5.08s = 122f, not on the 17k+5 grid (nearest legal: 124f)"
+      },
+      {
+        "sev": "high",
+        "code": "thin-description",
+        "msg": "detailed_description is 82 words (guide: 350-500 for a generation task)"
+      },
+      {
+        "sev": "med",
+        "code": "budget-drift",
+        "msg": "duration 5.08s vs plan budgetSec 7s"
+      }
+    ],
+    "words": 82
+  },
+  {
+    "scenario": "scene_19_sec_3",
+    "label": "E · 15.08s dense multi-cut, one line crossing a cut",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 7943,
+        "usage": {
+          "completion_tokens": 419,
+          "prompt_tokens": 2262,
+          "total_tokens": 2681,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [],
+      "summary": "[scene initialization] A static establishing view of the void environment with no active characters or dialogue, setting the baseline visual state for the sequence.",
+      "references": [
+        {
+          "id": "void_env",
+          "type": "location",
+          "appearsAs": "Empty dark gradient background",
+          "job": "Establishing spatial context"
+        }
+      ],
+      "shots": [
+        {
+          "id": "S19_3_01",
+          "startTime": 0,
+          "endTime": 5,
+          "composition": "Wide static frame of the empty environment",
+          "subjectIds": [
+            "void_env"
+          ],
+          "action": "Environment remains static with no visible changes",
+          "cameraMotion": "Static Shot",
+          "sound": "Low ambient silence"
+        }
+      ],
+      "overallSoundscape": "Silent void with minimal low-frequency hum",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "subtitles",
+        "text overlays",
+        "characters",
+        "props",
+        "camera movement"
+      ],
+      "duration": 5,
+      "purpose": "To establish the baseline visual environment before character entry.",
+      "shotStructure": "locked_single",
+      "performance": {
+        "objective": "To present the static environment clearly",
+        "obstacle": "Lack of visual interest",
+        "stakes": "Setting the tone for the subsequent action",
+        "physicalBusiness": "None",
+        "bodyState": "Static",
+        "eyeLife": "Fixed center gaze",
+        "voiceProfiles": []
+      },
+      "continuationAnchor": "Dark gradient background, static lighting, no props present"
+    },
+    "outcome": "compiled",
+    "compiled": "subject_definitions:\n<Subject 1> is Empty dark gradient background in <Picture 1>. Follow it for Establishing spatial context.\n\nsummary:\n[scene initialization] A static establishing view of the void environment with no active characters or dialogue, setting the baseline visual state for the sequence.\n\nretention_analysis:\n<Subject 1>: fully_preserved - Establishing spatial context.\n\ndetailed_description:\nPerformance objective: To present the static environment clearly. Obstacle: Lack of visual interest. Stakes: Setting the tone for the subsequent action. Physical business: None. Body state: Static. Eye life: Fixed center gaze.\n\n[Shot 1] Wide static frame of the empty environment Visible subjects: <Subject 1>. Action: Environment remains static with no visible changes Camera: Static Shot. Sound: Low ambient silence.\n\nContinuation anchor: Dark gradient background, static lighting, no props present\nNegative directions: subtitles; text overlays; characters; props; camera movement.\n\noverall_soundscape:\nSilent void with minimal low-frequency hum\n\nnon_diegetic_music:\nN/A",
+    "repairNotes": [],
+    "runnerAudit": [
+      "scene has authored dialogue but no <d>[Language] ...</d> block",
+      "dialogue present but no (Sx) speaker id",
+      "detailed_description is 79 words (guide: normally 350-500)"
+    ],
+    "dialogueIntegrity": {
+      "fatal": [],
+      "warnings": [
+        "plan line never reached the prompt: \"take it. it sits better on you than it does on me.\"",
+        "plan line never reached the prompt: \"three steps to the mark, then stop. do not look for the ligh\""
+      ]
+    },
+    "scriptFindings": [],
+    "guideNotes": [
+      {
+        "sev": "high",
+        "code": "no-style-opening",
+        "msg": "nothing before [Shot 1] establishes visual style (guide 5.2 requires 1-2 sentences); that slot instead holds: \"Performance objective: To present the static environment clearly. Obstacle: Lack of visual...\""
+      },
+      {
+        "sev": "med",
+        "code": "bad-task-prefix",
+        "msg": "summary prefix uses non-official task type(s): scene initialization"
+      },
+      {
+        "sev": "high",
+        "code": "camera-as-label",
+        "msg": "1 camera term(s) emitted as a stacked label (\"Camera: Static Shot.\") — base guide 4.3 requires natural English inside the shot"
+      },
+      {
+        "sev": "med",
+        "code": "no-amplitude-speed",
+        "msg": "no amplitude/speed modifier anywhere — the schema enum has no slot for the guide's other two camera dimensions"
+      },
+      {
+        "sev": "med",
+        "code": "retention-no-shotlist",
+        "msg": "retention_analysis omits the \"(appears in [Shot N], ...)\" clause the guide specifies, though shots[].subjectIds has the data"
+      },
+      {
+        "sev": "med",
+        "code": "negatives-as-nouns",
+        "msg": "5/5 negatives are bare nouns in positive prose (e.g. \"subtitles\") — H3 has no negative conditioning, so these read as content to render"
+      },
+      {
+        "sev": "high",
+        "code": "no-scenetrans",
+        "msg": "the plan runs a line across a cut, which the guide requires <scenetrans> on both sides of — the schema has no field that can emit it"
+      },
+      {
+        "sev": "critical",
+        "code": "invented-ids",
+        "msg": "references use id(s) not in the section's entity allowlist: void_env (allowed: meher, lira, script_bundle, rehearsal_stage)"
+      },
+      {
+        "sev": "critical",
+        "code": "line-not-verbatim",
+        "msg": "2 plan line(s) missing or altered: \"Take it. It sits better on you than it does on me.\""
+      },
+      {
+        "sev": "low",
+        "code": "off-grid-duration",
+        "msg": "duration 5s = 120f, not on the 17k+5 grid (nearest legal: 124f)"
+      },
+      {
+        "sev": "high",
+        "code": "thin-description",
+        "msg": "detailed_description is 79 words (guide: 350-500 for a generation task)"
+      },
+      {
+        "sev": "med",
+        "code": "budget-drift",
+        "msg": "duration 5s vs plan budgetSec 15.08s"
+      }
+    ],
+    "words": 79
+  }
+]

@@ -1,0 +1,912 @@
+[
+  {
+    "scenario": "scene_04_sec_1",
+    "label": "A · two-hander, Hindi native script, multi-cut",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 39636,
+        "usage": {
+          "completion_tokens": 1601,
+          "prompt_tokens": 2262,
+          "total_tokens": 3863,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "The air is thin here.",
+        "Look at the ridge.",
+        "We have minutes.",
+        "Go."
+      ],
+      "summary": "[reference generation] A high-altitude trekking scene where two climbers assess a dangerous ridge line before a final push. The visual focus is on the rugged terrain and the climbers' gear, transitioning from a wide environmental view to intimate character reactions.",
+      "references": [
+        {
+          "id": "climber_elara",
+          "type": "character",
+          "appearsAs": "Female climber in a red insulated jacket, helmet, and harness, face flushed from altitude.",
+          "job": "Lead climber, assessing route."
+        },
+        {
+          "id": "climber_jon",
+          "type": "character",
+          "appearsAs": "Male climber in a blue insulated jacket, helmet, and harness, breathing heavily.",
+          "job": "Support climber, following lead."
+        },
+        {
+          "id": "mountain_ridge",
+          "type": "location",
+          "appearsAs": "Serrated limestone ridge with steep drop-offs, sparse snow patches, and wind-swept clouds below.",
+          "job": "Primary environmental constraint and visual backdrop."
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_01",
+          "startTime": 0,
+          "endTime": 4.5,
+          "composition": "Wide shot establishing the climbers small against the vast, serrated ridge. Elara is on the left, Jon on the right, both silhouetted against the bright sky.",
+          "subjectIds": [
+            "climber_elara",
+            "climber_jon",
+            "mountain_ridge"
+          ],
+          "action": "Static composition. Wind buffets their jackets. Elara points toward the ridge crest. Jon adjusts his pack.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind howling softly, fabric rustling.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "climber_elara",
+              "language": "English",
+              "exactWords": "The air is thin here.",
+              "delivery": "quietly"
+            }
+          ]
+        },
+        {
+          "id": "shot_02",
+          "startTime": 4.5,
+          "endTime": 9,
+          "composition": "Medium close-up on Elara, looking off-screen right towards the ridge. Jon is slightly out of focus in the background.",
+          "subjectIds": [
+            "climber_elara",
+            "climber_jon"
+          ],
+          "action": "Elara turns her head slightly to acknowledge Jon's presence. Her expression is focused and urgent.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind intensifies slightly, heavy breathing.",
+          "transition": "Cut from wide to medium close-up to emphasize Elara's urgency.",
+          "dialogue": [
+            {
+              "speakerId": "S2",
+              "subjectId": "climber_jon",
+              "language": "English",
+              "exactWords": "Look at the ridge.",
+              "delivery": "urgently"
+            },
+            {
+              "speakerId": "S3",
+              "subjectId": "climber_elara",
+              "language": "English",
+              "exactWords": "We have minutes.",
+              "delivery": "with a strained breath"
+            }
+          ]
+        },
+        {
+          "id": "shot_03",
+          "startTime": 9,
+          "endTime": 13.5,
+          "composition": "Close-up on Jon's face, then pulling back slightly to show Elara's hand gesture. The background is blurred mountain rock.",
+          "subjectIds": [
+            "climber_jon",
+            "climber_elara"
+          ],
+          "action": "Jon nods sharply. Elara gestures for him to move forward. Jon starts climbing upward.",
+          "cameraMotion": "Static Shot",
+          "sound": "Gloves scraping rock, carabiner click.",
+          "transition": "Cut from Elara to Jon to show the immediate action response.",
+          "dialogue": [
+            {
+              "speakerId": "S4",
+              "subjectId": "climber_elara",
+              "language": "English",
+              "exactWords": "Go.",
+              "delivery": "short and sharp"
+            }
+          ]
+        },
+        {
+          "id": "shot_04",
+          "startTime": 13.5,
+          "endTime": 15.08,
+          "composition": "Wide shot again, showing Jon moving up the ridge while Elara watches. The sun begins to set behind the ridge.",
+          "subjectIds": [
+            "climber_elara",
+            "climber_jon",
+            "mountain_ridge"
+          ],
+          "action": "Jon reaches a stable position. Elara begins to move after him. The light dims slightly.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind fades to a hum, distant rock fall.",
+          "transition": "Cut from close-up to wide to show progress and environment context."
+        }
+      ],
+      "overallSoundscape": "Constant high-altitude wind, occasional fabric rustling, heavy breathing, carabiner clicks, and rock scraping.",
+      "nonDiegeticMusic": "Low, slow string drone building tension, fading out at the very end.",
+      "negatives": [
+        "No subtitles",
+        "No extra people",
+        "No anachronistic props",
+        "No soft dissolves",
+        "No redesigned reference plates"
+      ],
+      "duration": 15.08,
+      "purpose": "The climbers reach a critical point on the ridge where they must commit to the next ascent before daylight fades.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "To reach the ridge crest before nightfall.",
+        "obstacle": "Thin air and steep terrain.",
+        "stakes": "Failure means freezing or falling.",
+        "physicalBusiness": "Adjusting gear, scraping rock, heavy breathing.",
+        "bodyState": "Tense, focused, slightly hunched.",
+        "eyeLife": "Constantly scanning the route and partner.",
+        "voiceProfiles": [
+          {
+            "subjectId": "climber_elara",
+            "voicePrompt": "Female, mid-30s, strong and steady voice with a slight breathless quality due to altitude."
+          },
+          {
+            "subjectId": "climber_jon",
+            "voicePrompt": "Male, late-20s, deeper voice, slightly strained and urgent."
+          }
+        ]
+      }
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].dialogue[0].subjectId \"climber_elara\" is unknown; expected IDs: meher, lira, script_bundle, rehearsal_stage"
+  },
+  {
+    "scenario": "scene_07_sec_2",
+    "label": "B · genuinely silent beat, no dialogue",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 33102,
+        "usage": {
+          "completion_tokens": 2191,
+          "prompt_tokens": 2262,
+          "total_tokens": 4453,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "The gate is closed.",
+        "It's been closed for a decade.",
+        "Then we open it."
+      ],
+      "summary": "[scene preparation] A tense standoff between the Guardian and the Traveler at the Old Stone Gate. The Guardian insists the barrier is permanent, while the Traveler demonstrates intent to breach it. The scene ends with the Traveler placing their hand on the stone, signaling the start of the physical interaction.",
+      "references": [
+        {
+          "id": "guardian_elara",
+          "type": "character",
+          "appearsAs": "Elderly woman in tattered grey robes, leaning heavily on a wooden staff, standing firmly in front of the gate.",
+          "job": "Primary antagonist, blocking passage",
+          "retention": "fully_preserved"
+        },
+        {
+          "id": "traveler_kael",
+          "type": "character",
+          "appearsAs": "Young man in worn leather travel cloak, dirt-stained face, holding a glowing blue shard in his right hand.",
+          "job": "Protagonist, seeking entry",
+          "retention": "fully_preserved"
+        },
+        {
+          "id": "old_stone_gate",
+          "type": "location",
+          "appearsAs": "Massive granite door set into a cliff face, covered in faded moss and ancient carvings, slightly ajar.",
+          "job": "Environmental barrier and focal point",
+          "retention": "partially_preserved"
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_07_sec_2_01",
+          "startTime": 0,
+          "endTime": 3.5,
+          "composition": "Medium two-shot. Guardian Elara stands on the left, blocking the gate. Traveler Kael stands on the right, slightly lower, looking up at her. The gate is in the background center.",
+          "subjectIds": [
+            "guardian_elara",
+            "traveler_kael",
+            "old_stone_gate"
+          ],
+          "action": "Elara plants her staff firmly. Kael shifts his weight forward, eyeing the gap in the gate.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind whistling through the cliff crevices. The low rumble of distant thunder.",
+          "transition": "Reveals the tension between the two figures and their relative positions to the barrier.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "guardian_elara",
+              "language": "English",
+              "exactWords": "The gate is closed.",
+              "delivery": "Steady, authoritative"
+            },
+            {
+              "speakerId": "S2",
+              "subjectId": "traveler_kael",
+              "language": "English",
+              "exactWords": "It's been closed for a decade.",
+              "delivery": "Quiet, contemplative"
+            }
+          ],
+          "acting": [
+            {
+              "subjectId": "guardian_elara",
+              "tactic": "Intimidate",
+              "observableBehavior": "Leans on staff, raises chin slightly, eyes lock with Kael.",
+              "beatChange": "From passive standing to active blocking"
+            },
+            {
+              "subjectId": "traveler_kael",
+              "tactic": "Observe",
+              "observableBehavior": "Glances at the gate, then back to Elara, hand tightening slightly on shard.",
+              "beatChange": "From stillness to subtle forward lean"
+            }
+          ]
+        },
+        {
+          "id": "shot_07_sec_2_02",
+          "startTime": 3.5,
+          "endTime": 7,
+          "composition": "Close-up on Elara's face, then rack focus to Kael's hand holding the shard. The shard emits a faint blue glow.",
+          "subjectIds": [
+            "guardian_elara",
+            "traveler_kael"
+          ],
+          "action": "Elara narrows her eyes. Kael raises his hand slightly, the shard pulsing.",
+          "cameraMotion": "Static Shot",
+          "sound": "A subtle hum from the shard. Elara's breathing becomes slightly sharper.",
+          "dialogue": [
+            {
+              "speakerId": "S2",
+              "subjectId": "traveler_kael",
+              "language": "English",
+              "exactWords": "Then we open it.",
+              "delivery": "Soft, determined"
+            }
+          ],
+          "acting": [
+            {
+              "subjectId": "guardian_elara",
+              "tactic": "Assess threat",
+              "observableBehavior": "Eyes follow Kael's hand, pupil dilation visible.",
+              "beatChange": "From authority to cautious recognition"
+            },
+            {
+              "subjectId": "traveler_kael",
+              "tactic": "Signal intent",
+              "observableBehavior": "Raises shard, thumb rubs the stone edge.",
+              "beatChange": "From contemplation to action-ready"
+            }
+          ]
+        },
+        {
+          "id": "shot_07_sec_2_03",
+          "startTime": 7,
+          "endTime": 12,
+          "composition": "Wide shot from behind Elara. Kael walks past her, stepping toward the gate. The gate creaks open two inches.",
+          "subjectIds": [
+            "guardian_elara",
+            "traveler_kael",
+            "old_stone_gate"
+          ],
+          "action": "Kael passes Elara. She does not move to stop him. The gate shifts.",
+          "cameraMotion": "Static Shot",
+          "sound": "Stone grinding on stone. The wind intensifies slightly.",
+          "acting": [
+            {
+              "subjectId": "guardian_elara",
+              "tactic": "Yield",
+              "observableBehavior": "Stands still, watching Kael's back, staff relaxed.",
+              "beatChange": "From active blocking to passive observation"
+            },
+            {
+              "subjectId": "traveler_kael",
+              "tactic": "Approach",
+              "observableBehavior": "Walks steadily past Elara, reaches out to touch the gate.",
+              "beatChange": "From walking to reaching"
+            }
+          ]
+        },
+        {
+          "id": "shot_07_sec_2_04",
+          "startTime": 12,
+          "endTime": 15.08,
+          "composition": "Extreme close-up of Kael's hand touching the mossy stone of the gate. The shard's glow reflects on the granite.",
+          "subjectIds": [
+            "traveler_kael",
+            "old_stone_gate"
+          ],
+          "action": "Kael's palm makes contact. The stone vibrates faintly.",
+          "cameraMotion": "Static Shot",
+          "sound": "Low thrum of stone resonance. A final gust of wind.",
+          "acting": [
+            {
+              "subjectId": "traveler_kael",
+              "tactic": "Connect",
+              "observableBehavior": "Hand flattens against stone, fingers spread.",
+              "beatChange": "From approach to connection"
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Wind howling through the mountain pass. Distant thunder rumbles periodically. The low, resonant hum of the stone gate when Kael approaches. Sharp intake of breath from Elara when the gate shifts.",
+      "nonDiegeticMusic": "Minimal cello drone, slow tempo, rising slightly in pitch as Kael touches the gate.",
+      "negatives": [
+        "No subtitles or captions",
+        "No extra characters appearing",
+        "No bright sunlight (overcast, moody lighting)",
+        "No digital UI elements",
+        "No rapid camera movement"
+      ],
+      "duration": 15.08,
+      "purpose": "Establish the Traveler's intent to breach the ancient barrier and the Guardian's reluctant acceptance of his path.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "Convince Elara that the gate must be opened",
+        "obstacle": "Elara's rigid adherence to tradition and fear of what lies beyond",
+        "stakes": "If Kael fails, he must wait another decade or find another way",
+        "physicalBusiness": "Kael holds his shard tight, then extends it to touch the stone. Elara grips her staff, then relaxes.",
+        "bodyState": "Kael: Tense shoulders, focused gaze. Elara: Rigid posture, then slight slump.",
+        "eyeLife": "Kael: Looks at Elara, then the gate, then the stone. Elara: Watches Kael's face, then his hand, then the gate.",
+        "voiceProfiles": [
+          {
+            "subjectId": "guardian_elara",
+            "voicePrompt": "Elderly female, raspy, authoritative, slight breathiness"
+          },
+          {
+            "subjectId": "traveler_kael",
+            "voicePrompt": "Young male, clear, calm, slight gravel, determined"
+          }
+        ]
+      },
+      "continuationAnchor": "Kael's hand is pressed against the gate, the stone glowing faintly blue. Elara stands behind him, staff lowered, watching intently."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].dialogue[0].subjectId \"guardian_elara\" is unknown; expected IDs: meher, brass_bell, rehearsal_stage"
+  },
+  {
+    "scenario": "scene_11_sec_1",
+    "label": "C · crowded — 3 characters, 2 objects, location, one state plate",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 11696,
+        "usage": {
+          "completion_tokens": 1237,
+          "prompt_tokens": 2262,
+          "total_tokens": 3499,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "The lock is jammed.",
+        "Give me a second.",
+        "It's open."
+      ],
+      "summary": "[reference generation] A tense interaction between two characters at a secure door, moving from obstruction to release.",
+      "references": [
+        {
+          "id": "S1",
+          "type": "character",
+          "appearsAs": "Worn leather jacket, focused expression",
+          "job": "The operator trying to open the door"
+        },
+        {
+          "id": "S2",
+          "type": "character",
+          "appearsAs": "Grey tactical vest, impatient stance",
+          "job": "The observer waiting for entry"
+        },
+        {
+          "id": "LOC1",
+          "type": "location",
+          "appearsAs": "Rusty industrial door with manual latch",
+          "job": "The obstacle blocking passage"
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_11_sec_1_a",
+          "startTime": 0,
+          "endTime": 2.5,
+          "composition": "Medium close-up of S1's hands on the door latch, shallow depth of field blurring S2 in background",
+          "subjectIds": [
+            "S1",
+            "S2",
+            "LOC1"
+          ],
+          "action": "S1 jiggles the latch; it resists. S2 watches from behind.",
+          "cameraMotion": "Static Shot",
+          "sound": "Metal clinking, heavy breathing",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "S1",
+              "language": "English",
+              "exactWords": "The lock is jammed.",
+              "delivery": "muttered"
+            }
+          ]
+        },
+        {
+          "id": "shot_11_sec_1_b",
+          "startTime": 2.5,
+          "endTime": 5,
+          "composition": "Close-up of S1's face, sweat visible, eyes darting to S2 then back to latch",
+          "subjectIds": [
+            "S1",
+            "S2"
+          ],
+          "action": "S1 applies pressure to the latch; S2 shifts weight impatiently.",
+          "cameraMotion": "Static Shot",
+          "sound": "Metal groaning, foot scuff",
+          "dialogue": [
+            {
+              "speakerId": "S2",
+              "subjectId": "S2",
+              "language": "English",
+              "exactWords": "Give me a second.",
+              "delivery": "urgent"
+            }
+          ]
+        },
+        {
+          "id": "shot_11_sec_1_c",
+          "startTime": 5,
+          "endTime": 7.5,
+          "composition": "Two-shot, S1 steps back slightly as the door unlatches; S2 steps forward into frame",
+          "subjectIds": [
+            "S1",
+            "S2",
+            "LOC1"
+          ],
+          "action": "The latch clicks up; S1 releases it. S2 moves to push the door.",
+          "cameraMotion": "Static Shot",
+          "sound": "Loud metallic click",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "S1",
+              "language": "English",
+              "exactWords": "It's open.",
+              "delivery": "relieved"
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Low ambient hum of the industrial facility, distant wind outside, heavy breathing.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No subtitles",
+        "No extra characters in background",
+        "No glowing indicators on the door",
+        "No digital displays"
+      ],
+      "duration": 7.5,
+      "purpose": "To establish the mechanical obstruction and immediate relief of entry.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "Unlock the door before S2 loses patience",
+        "obstacle": "The stiff, rusted latch",
+        "stakes": "Missing the extraction window if delayed",
+        "physicalBusiness": "Jiggling the latch, wiping sweat, stepping back",
+        "bodyState": "Tense shoulders, leaning forward",
+        "eyeLife": "Fixed on the latch, darting to S2 for feedback",
+        "voiceProfiles": [
+          {
+            "subjectId": "S1",
+            "voicePrompt": "Male, 40s, gravelly, tired but focused"
+          },
+          {
+            "subjectId": "S2",
+            "voicePrompt": "Male, 30s, sharp, slightly breathless"
+          }
+        ],
+        "subtext": "Trust in S1's skill is being tested by time",
+        "statusDynamic": "S1 moves from controlled to relieved; S2 from impatient to ready",
+        "proxemics": "Close proximity, intimate workspace around the door"
+      },
+      "continuationAnchor": "S2 pushes the door open, revealing a dark corridor beyond. S1 follows closely behind."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].dialogue[0].subjectId \"S1\" is unknown; expected IDs: meher, lira, dhruv, script_bundle, brass_bell, rehearsal_stage"
+  },
+  {
+    "scenario": "scene_02_sec_1",
+    "label": "D · single continuous take, English voiceover",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 12931,
+        "usage": {
+          "completion_tokens": 1943,
+          "prompt_tokens": 2262,
+          "total_tokens": 4205,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "The wind is changing direction.",
+        "We need to move.",
+        "Wait for the gust."
+      ],
+      "summary": "[reference generation] The scene depicts a tactical pause in a stormy environment where the group assesses weather patterns before proceeding. Visual focus shifts between the leader observing the sky and the team preparing to move.",
+      "references": [
+        {
+          "id": "scene_02_sec_1_leader",
+          "type": "character",
+          "appearsAs": "A rugged commander wearing a heavy waxed canvas coat, hair plastered to forehead by rain, eyes scanning the horizon.",
+          "job": "Primary observer and decision maker."
+        },
+        {
+          "id": "scene_02_sec_1_squad",
+          "type": "character",
+          "appearsAs": "Two figures in matching grey thermal gear, huddled slightly against the wind, hands on gear straps.",
+          "job": "Support team awaiting orders."
+        },
+        {
+          "id": "scene_02_sec_1_terrain",
+          "type": "location",
+          "appearsAs": "A narrow basalt ridge with jagged edges, low visibility due to mist, wet rock surfaces reflecting dim light.",
+          "job": "Unstable footing and wind channel."
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_02_01",
+          "startTime": 0,
+          "endTime": 3.5,
+          "composition": "Medium close-up on the leader, shallow depth of field blurring the swirling mist behind. Leader is looking up and left.",
+          "subjectIds": [
+            "scene_02_sec_1_leader"
+          ],
+          "action": "Leader tilts head up, feeling the rain shift from horizontal to vertical.",
+          "cameraMotion": "Static Shot",
+          "sound": "Heavy wind roar, sharp rain hits against fabric and rock.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "scene_02_sec_1_leader",
+              "language": "English",
+              "exactWords": "The wind is changing direction.",
+              "delivery": "Calm, observational"
+            }
+          ],
+          "acting": [
+            {
+              "subjectId": "scene_02_sec_1_leader",
+              "tactic": "Assess",
+              "observableBehavior": "Eyes widen slightly, head tilts back, nostrils flare to catch scent of air.",
+              "beatChange": "From scanning to focused observation"
+            }
+          ]
+        },
+        {
+          "id": "shot_02_02",
+          "startTime": 3.5,
+          "endTime": 6,
+          "composition": "Two-shot, medium wide, showing leader and squad. Leader is in foreground right, squad in background left, slightly out of focus.",
+          "subjectIds": [
+            "scene_02_sec_1_leader",
+            "scene_02_sec_1_squad"
+          ],
+          "action": "Leader turns head toward squad. Squad members look up in unison.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind dips slightly, boots shift on wet rock.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "scene_02_sec_1_leader",
+              "language": "English",
+              "exactWords": "We need to move.",
+              "delivery": "Short, imperative"
+            },
+            {
+              "speakerId": "S2",
+              "subjectId": "scene_02_sec_1_squad",
+              "language": "English",
+              "exactWords": "Wait for the gust.",
+              "delivery": "Shouted over wind"
+            }
+          ],
+          "acting": [
+            {
+              "subjectId": "scene_02_sec_1_leader",
+              "tactic": "Command",
+              "observableBehavior": "Nods sharply, turns torso toward squad.",
+              "beatChange": "From observation to instruction"
+            },
+            {
+              "subjectId": "scene_02_sec_1_squad",
+              "tactic": "React",
+              "observableBehavior": "Heads snap up, hands tighten on straps.",
+              "beatChange": "From passive waiting to alert readiness"
+            }
+          ]
+        },
+        {
+          "id": "shot_02_03",
+          "startTime": 6,
+          "endTime": 10.5,
+          "composition": "Wide shot of terrain, leader and squad small in frame, moving left across the ridge. Mist thickens.",
+          "subjectIds": [
+            "scene_02_sec_1_leader",
+            "scene_02_sec_1_squad",
+            "scene_02_sec_1_terrain"
+          ],
+          "action": "Group moves in formation. Leader steps carefully on wet rock. Mist swallows the rear of the group.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind howls louder, heavy breathing, scuffing of boots.",
+          "dialogue": [],
+          "acting": [
+            {
+              "subjectId": "scene_02_sec_1_leader",
+              "tactic": "Lead",
+              "observableBehavior": "Leans forward into wind, one hand out for balance.",
+              "beatChange": "Steady pace maintained"
+            },
+            {
+              "subjectId": "scene_02_sec_1_squad",
+              "tactic": "Follow",
+              "observableBehavior": "Heads down, shoulders hunched, maintaining line.",
+              "beatChange": "From alert to focused movement"
+            }
+          ]
+        },
+        {
+          "id": "shot_02_04",
+          "startTime": 10.5,
+          "endTime": 14,
+          "composition": "Extreme close-up on leader's eye, reflection of mist visible in iris. Background is blur of grey.",
+          "subjectIds": [
+            "scene_02_sec_1_leader"
+          ],
+          "action": "Eye blinks once. Focus shifts slightly.",
+          "cameraMotion": "Static Shot",
+          "sound": "Wind fades to low rumble, sharp intake of breath.",
+          "dialogue": [],
+          "acting": [
+            {
+              "subjectId": "scene_02_sec_1_leader",
+              "tactic": "Endure",
+              "observableBehavior": "Blinks slowly, pupils dilate slightly.",
+              "beatChange": "From external focus to internal resolve"
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Constant strong wind noise, intermittent rain splatter, distant thunder rumble, and the crunch of boots on wet basalt.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No subtitles",
+        "No extra characters appearing from mist",
+        "No bright sunlight",
+        "No soft dissolve transitions",
+        "No redesigned leader appearance"
+      ],
+      "duration": 14,
+      "purpose": "The group identifies a shift in weather patterns and initiates movement before visibility drops further.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "Navigate the ridge safely before the storm peaks.",
+        "obstacle": "Shifting wind and wet, slippery terrain.",
+        "stakes": "Falling off the ridge or losing team cohesion.",
+        "physicalBusiness": "Leader leans into wind; squad grips gear straps.",
+        "bodyState": "Tense, hunched, eyes squinting against rain.",
+        "eyeLife": "Frequent scanning, sharp turns on command, sustained focus on footing.",
+        "voiceProfiles": [
+          {
+            "subjectId": "scene_02_sec_1_leader",
+            "voicePrompt": "Low baritone, gravelly texture, steady pace, slight regional accent."
+          },
+          {
+            "subjectId": "scene_02_sec_1_squad",
+            "voicePrompt": "Mid-range tenor, breathy due to exertion, clear enunciation despite wind."
+          }
+        ]
+      },
+      "continuationAnchor": "Leader exits frame left, mist thickens around squad, wind noise persists at high volume."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].dialogue[0].subjectId \"scene_02_sec_1_leader\" is unknown; expected IDs: lira, script_bundle, green_room"
+  },
+  {
+    "scenario": "scene_19_sec_3",
+    "label": "E · 15.08s dense multi-cut, one line crossing a cut",
+    "arm": "asis",
+    "promptChars": 9531,
+    "attempts": [
+      {
+        "attempt": 1,
+        "ms": 13225,
+        "usage": {
+          "completion_tokens": 1356,
+          "prompt_tokens": 2262,
+          "total_tokens": 3618,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "ok": true
+      }
+    ],
+    "scene": {
+      "spokenLines": [
+        "The door is locked.",
+        "I told you, the key is lost.",
+        "Then we break it."
+      ],
+      "summary": "[reference generation] A tense standoff between two characters in a dimly lit corridor as they decide to force entry through a locked door.",
+      "references": [
+        {
+          "id": "S1",
+          "type": "character",
+          "appearsAs": "Worn leather jacket, tired eyes, standing close to the door.",
+          "job": "Protagonist attempting entry"
+        },
+        {
+          "id": "S2",
+          "type": "character",
+          "appearsAs": "Dark coat, holding a flashlight, standing slightly behind S1.",
+          "job": "Companion supporting the effort"
+        },
+        {
+          "id": "Door_01",
+          "type": "object",
+          "appearsAs": "Heavy wooden door with a rusted lock, slightly ajar but stuck.",
+          "job": "Primary obstacle"
+        },
+        {
+          "id": "Corridor_L",
+          "type": "location",
+          "appearsAs": "Narrow stone corridor with damp walls and flickering candlelight.",
+          "job": "Environment setting the mood"
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot_19_01",
+          "startTime": 0,
+          "endTime": 4.5,
+          "composition": "Medium shot focused on S1 standing in front of Door_01. S2 is visible in the background, slightly out of focus.",
+          "subjectIds": [
+            "S1",
+            "Door_01"
+          ],
+          "action": "S1 pulls at the door handle but it does not budge. S2 watches from behind.",
+          "cameraMotion": "Static Shot",
+          "sound": "Creaking wood of the door handle, distant wind howling in the corridor.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "S1",
+              "language": "English",
+              "exactWords": "The door is locked.",
+              "delivery": "frustrated"
+            }
+          ]
+        },
+        {
+          "id": "shot_19_02",
+          "startTime": 4.5,
+          "endTime": 9,
+          "composition": "Over-the-shoulder shot from behind S2, focusing on S1's back and the door. S1 turns slightly to address S2.",
+          "subjectIds": [
+            "S1",
+            "S2",
+            "Door_01"
+          ],
+          "action": "S1 steps back from the door and gestures with their hand towards the lock mechanism.",
+          "cameraMotion": "Static Shot",
+          "sound": "Footsteps shifting on stone, S1's breath hitching.",
+          "dialogue": [
+            {
+              "speakerId": "S2",
+              "subjectId": "S2",
+              "language": "English",
+              "exactWords": "I told you, the key is lost.",
+              "delivery": "calmly"
+            }
+          ]
+        },
+        {
+          "id": "shot_19_03",
+          "startTime": 9,
+          "endTime": 13.5,
+          "composition": "Close-up on S1's face, illuminated by S2's flashlight. S1 looks determined.",
+          "subjectIds": [
+            "S1",
+            "S2"
+          ],
+          "action": "S1 nods decisively and steps back to prepare for a kick or shoulder check.",
+          "cameraMotion": "Static Shot",
+          "sound": "Flashlight beam hum, S1's muscles tensing.",
+          "dialogue": [
+            {
+              "speakerId": "S1",
+              "subjectId": "S1",
+              "language": "English",
+              "exactWords": "Then we break it.",
+              "delivery": "urgent"
+            }
+          ]
+        }
+      ],
+      "overallSoundscape": "Low wind whistling through the stone corridor, occasional distant drips of water, and the ambient hum of the flashlight bulb.",
+      "nonDiegeticMusic": "N/A",
+      "negatives": [
+        "No subtitles",
+        "No extra characters",
+        "No bright sunlight",
+        "No modern electric lights",
+        "No soft dissolves",
+        "No redesigned door"
+      ],
+      "duration": 13.5,
+      "purpose": "The characters realize they cannot open the door gently and decide to force it open.",
+      "shotStructure": "multi_cut",
+      "performance": {
+        "objective": "Force entry through the door",
+        "obstacle": "The door is locked and the key is missing.",
+        "stakes": "Failure means losing time or being detected by pursuing enemies.",
+        "physicalBusiness": "S1 pulls the handle, steps back, and prepares to strike. S2 shifts weight and adjusts grip on the flashlight.",
+        "bodyState": "Tense, focused, ready to act.",
+        "eyeLife": "S1 alternates between the lock and S2. S2 watches S1 and the door.",
+        "voiceProfiles": [
+          {
+            "subjectId": "S1",
+            "voicePrompt": "Rough, slightly breathless male voice with a hint of exhaustion."
+          },
+          {
+            "subjectId": "S2",
+            "voicePrompt": "Steady, lower-register male voice, calm and reassuring."
+          }
+        ]
+      },
+      "continuationAnchor": "S1 is positioned to strike the door, S2 is ready to assist, flashlight beam fixed on the lock."
+    },
+    "outcome": "compile-rejected",
+    "compileError": "shots[0].dialogue[0].subjectId \"S1\" is unknown; expected IDs: meher, lira, script_bundle, rehearsal_stage"
+  }
+]

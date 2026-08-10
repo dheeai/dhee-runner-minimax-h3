@@ -1,0 +1,32 @@
+subject_definitions:
+<Subject 1> is Tall, straight-backed woman in her sixties, silver hair pinned severely, a dark green shawl re-settled on her shoulders, deep-set eyes that do not focus, holding a thick open script at arm's length. in <Picture 1>. Follow it for Controls Meher's posture, shawl, unfocused gaze, and the tentative way she tilts the script toward the light..
+<Subject 2> is Small, wiry woman in her twenties, black hair cropped short, wearing a paint-stained grey rehearsal sweater, holding a dog-eared script with both hands. in <Picture 2>. Follow it for Controls Lira's forward stance, hesitant steps, and the shield-like way she holds the script..
+<Subject 3> is A thick playscript, spine broken, margins dense with pencil, corners furred from handling. in <Picture 3>. Follow it for Controls the condition of the script Meher struggles to read and the one Lira offers from..
+<Subject 4> is An empty proscenium stage, black-painted floor scuffed pale along blocking lines, one bare work light on a stand, taped marks in faded yellow, the auditorium beyond a flat void. in <Picture 4>. Follow it for Controls the bare stage, the single work light, and the taped marks that anchor the blocking..
+
+summary:
+[reference generation] Meher stands alone at the taped mark on the bare rehearsal stage, holding the open script toward the work light. She cannot find her line and asks where it is. The cut reveals Lira already three steps closer, script open on her forearm, offering to read the line back to her.
+
+retention_analysis:
+<Subject 1>: fully_preserved - Controls Meher's posture, shawl, unfocused gaze, and the tentative way she tilts the script toward the light..
+<Subject 2>: fully_preserved - Controls Lira's forward stance, hesitant steps, and the shield-like way she holds the script..
+<Subject 3>: fully_preserved - Controls the condition of the script Meher struggles to read and the one Lira offers from..
+<Subject 4>: fully_preserved - Controls the bare stage, the single work light, and the taped marks that anchor the blocking..
+
+detailed_description:
+Performance objective: Meher asks Lira to supply the line she can no longer see on the page.. Obstacle: Her failing sight makes the text unreadable, and asking is a small admission she resists.. Stakes: If she cannot get the line now, the room may see her as finished.. Physical business: Meher holds the open script at arm's length, tilting it toward the light; Lira opens her own script on her forearm as she steps closer.. Body state: Meher stands tall with weight back on her heels; Lira is forward on the balls of her feet, rocking slightly.. Eye life: Meher's eyes travel toward sound rather than to a face; Lira checks Meher, then the floor, then the script, with tight blinks..
+
+[Shot 1] Medium shot, slightly low angle, centered on Meher at the taped mark. The open script is held up toward the work light at screen right, her face in profile. The bare stage and void auditorium stretch behind her. Visible subjects: <Subject 1>, <Subject 3>, <Subject 4>. Action: Meher holds the script open at arm's length, tilting it toward the work light. She squints, then lowers it slightly and speaks. Camera: Static Shot. Sound: The soft rustle of paper as she tilts the script; her slow breath.. <Subject 1> Acting: Tactic: asks for help. Observable behavior: She tilts the script open toward the light, then lets it drop a few inches as she gives up trying to read.. Beat change: From squinting at the page to lowering it and speaking outward.. Assessment moment: He pauses, blinking slowly, before she asks.. Voice identity for <Subject 1>: A 61-year-old woman with a trained stage contralto, low and resonant, precise consonants, unhurried phrasing with deliberate pauses mid-sentence, a faint Bombay-Parsi cadence, and a slight dry rasp on sustained vowels. <Subject 1> (S1) says with a strained, patient calm: <d>[Hindi] यह पंक्ति कहाँ है? मुझे दिखाई नहीं दे रही।</d>
+
+[Shot 2] At 00:04.000, the shot cuts to a new view. Medium shot, eye level, centered on Lira about three steps downstage of Meher. She holds the script open on her forearm, her weight forward, looking from Meher to the page. Visible subjects: <Subject 2>, <Subject 3>, <Subject 4>. Action: Lira has already advanced three steps when the cut lands. She opens the script on her forearm and offers to read. Camera: Static Shot. Sound: The soft tap of her footsteps as she shifts weight; the turn of a page.. <Subject 2> Acting: Tactic: offers help. Observable behavior: She checks Meher, then the floor, then the script, and drops her shoulders the instant Meher's gaze turns toward her.. Beat change: From waiting in place to stepping forward and speaking.. Reaction: She starts to speak as Meher lowers the script.. Interrupted action: She had been holding the script closed; now she opens it on her forearm.. Voice identity for <Subject 2>: A 26-year-old woman with a light, quick mid-range voice, breathy on onsets, a habit of ending statements slightly upward, clipped urban Indian English with fast unstressed syllables. <Subject 2> (S2) says quickly, almost a reflex, then apologetic: <d>[Hindi] तीसरे पन्ने पर, नीचे। मैं पढ़ूँ?</d>
+
+Continuation anchor: Meher still holds the script open, lowered; Lira stands three steps closer, script open on her forearm. The work light remains the only light. The script bundle is open in both their hands.
+Negative directions: No extra people on stage.; No hard shadows or bright specular light.; No subtitles or text on screen.; Do not show the audience or any auditorium detail beyond a flat void.; No modern clothing or anachronistic props.; Do not soften or romanticize the light; keep it flat and workmanlike.; No line art or cel shading..
+
+overall_soundscape:
+The hum of the single work light; the soft scuff of shoes on the painted floor; faint creaks of the empty stage; the rustle of script pages.
+
+non_diegetic_music:
+Low, sparse piano, a single soft note held, then a second note as Lira steps forward.
+
+--- words in detailed_description: 613

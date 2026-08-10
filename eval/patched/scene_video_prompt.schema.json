@@ -1,0 +1,375 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spokenLines",
+    "style",
+    "summary",
+    "references",
+    "shots",
+    "overallSoundscape",
+    "nonDiegeticMusic",
+    "negatives",
+    "duration",
+    "purpose",
+    "shotStructure",
+    "performance"
+  ],
+  "properties": {
+    "spokenLines": {
+      "type": "array",
+      "description": "Exact spoken-word ledger copied from the owning scene plan. Keep one bare, verbatim string per line; use an empty array when nobody speaks. Do not add <d> markup or language labels here.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "The summary section. Start with a task-type prefix such as [reference generation], then summarize the target video and shot flow using only the Subject labels the runner will inject."
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 9,
+      "description": "Ordered visible references for this scene. Put the most important subjects first and the location last. Every entry must be used by at least one shot.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "appearsAs",
+          "job"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The exact story-bible id. Use the plain character/object/location id, never a generated state id."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "character",
+              "object",
+              "location"
+            ]
+          },
+          "appearsAs": {
+            "type": "string",
+            "description": "Short lower-case noun phrase describing the current visible reference, with NO trailing period and NO leading capital \u2014 the runner drops it into the frame \"<Subject N> is ___ in <Picture N>.\", so \"an elderly woman in a green shawl\" is correct and \"Elderly woman in a green shawl.\" is not. Do not write a slot number."
+          },
+          "job": {
+            "type": "string",
+            "description": "What this reference must control, as a lower-case noun phrase with NO trailing period and NO leading verb \u2014 the runner drops it into \"Follow it for ___.\", so \"her posture, shawl and unfocused gaze\" is correct and \"Controls her posture.\" is not. Do not write a slot number."
+          },
+          "retention": {
+            "type": "string",
+            "enum": [
+              "fully_preserved",
+              "partially_preserved",
+              "attribute_transfer",
+              "weak_reference"
+            ]
+          }
+        }
+      }
+    },
+    "shots": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered time-bounded beats. startTime values are cut times in seconds: the first is 0 and every later value is strictly greater than the previous one. endTime must be greater than startTime and no greater than duration. The runner enforces these relationships.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "startTime",
+          "endTime",
+          "composition",
+          "subjectIds",
+          "action",
+          "cameraMotion",
+          "sound",
+          "acting"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "number",
+            "minimum": 0
+          },
+          "endTime": {
+            "type": "number",
+            "minimum": 0
+          },
+          "composition": {
+            "type": "string",
+            "description": "Framing, viewpoint, scale and subject placement."
+          },
+          "subjectIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Reference ids visibly present or taking effect in this shot."
+          },
+          "action": {
+            "type": "string",
+            "description": "The physical state change: what is true at the start and what is true at the end."
+          },
+          "cameraMotion": {
+            "type": "string",
+            "enum": [
+              "Zoom In",
+              "Zoom Out",
+              "Push In",
+              "Pull Out",
+              "Pan Left",
+              "Pan Right",
+              "Truck Left",
+              "Truck Right",
+              "Tilt Up",
+              "Tilt Down",
+              "Pedestal Up",
+              "Pedestal Down",
+              "Arc Shot",
+              "Tracking Shot",
+              "Static Shot",
+              "Shake Slightly",
+              "Shake Strongly",
+              "POV",
+              "Roll Clockwise",
+              "Roll Counterclockwise"
+            ]
+          },
+          "sound": {
+            "type": "string",
+            "description": "Physical, shot-synchronous sound only. Keep scene-wide ambience in overallSoundscape."
+          },
+          "transition": {
+            "type": "string",
+            "description": "REQUIRED on every shot after the first. Write it as a lower-case clause that grammatically continues \"At 00:04.000, ...\" and begins with one of: the shot cuts to, the camera cuts to, the shot transitions to, the shot changes to, the shot switches to. Say what new information the cut reveals. Omit only on the first shot."
+          },
+          "dialogue": {
+            "type": "array",
+            "description": "Typed lines owned by this shot. Each exactWords value must match exactly one entry in spokenLines; the runner emits the H3 <d> tag without changing it.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "speakerId",
+                "subjectId",
+                "language",
+                "exactWords",
+                "delivery"
+              ],
+              "properties": {
+                "speakerId": {
+                  "type": "string",
+                  "description": "Stable voice id such as S1. The same speaker keeps the same id throughout the scene."
+                },
+                "subjectId": {
+                  "type": "string",
+                  "description": "The visible reference id that owns this voice."
+                },
+                "language": {
+                  "type": "string"
+                },
+                "exactWords": {
+                  "type": "string",
+                  "description": "Copy the corresponding spokenLines string verbatim, including punctuation and native script."
+                },
+                "delivery": {
+                  "type": "string",
+                  "description": "Vocal delivery placed outside the dialogue tag, such as quietly or with a strained breath."
+                }
+              }
+            }
+          },
+          "acting": {
+            "type": "array",
+            "description": "REQUIRED. One entry for every character in subjectIds \u2014 the runner rejects the scene otherwise. A shot with no character at all still needs one entry naming the object or location subject it is about.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "subjectId",
+                "tactic",
+                "observableBehavior",
+                "beatChange"
+              ],
+              "properties": {
+                "subjectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Character reference id adapted in this shot."
+                },
+                "tactic": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Concrete action verb describing how the character pursues the objective now."
+                },
+                "observableBehavior": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Filmable behavior in the body, gaze, breath, hands, voice or reaction; never an emotion label alone."
+                },
+                "beatChange": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Visible behavior change that marks the new beat."
+                },
+                "reaction": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Optional listening or partner reaction that begins before or during the partner's line."
+                },
+                "assessmentMoment": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Optional visible moment in which the character takes in important information before choosing the next action."
+                },
+                "interruptedAction": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Optional physical business that stops or changes as the beat lands."
+                }
+              }
+            },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "overallSoundscape": {
+      "type": "string",
+      "description": "One short paragraph of scene-wide non-verbal ambience, physical action sounds and breathing. Never repeat dialogue, singing or score. Use N/A only for genuine silence."
+    },
+    "nonDiegeticMusic": {
+      "type": "string",
+      "description": "Score the characters cannot hear: instrumentation, pace, rhythm and dynamic change. Use N/A when there is no score."
+    },
+    "negatives": {
+      "type": "array",
+      "description": "Explicit negative directions that the runner will write into the positive H3 prose because this graph has no negative-conditioning input.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 5,
+      "maximum": 15.08,
+      "description": "Total seconds for this one H3 call. Every shot must fit inside it."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "The single story beat this scene lands."
+    },
+    "shotStructure": {
+      "type": "string",
+      "enum": [
+        "continuous_moving",
+        "locked_single",
+        "multi_cut"
+      ],
+      "description": "Use multi_cut for two or more shots; use continuous_moving or locked_single for exactly one shot. The runner enforces the count and timing rules."
+    },
+    "performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objective",
+        "obstacle",
+        "stakes",
+        "physicalBusiness",
+        "bodyState",
+        "eyeLife",
+        "voiceProfiles"
+      ],
+      "properties": {
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the character wants in this scene, expressed as a verb aimed at a specific partner or concrete target."
+        },
+        "obstacle": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What prevents the objective now."
+        },
+        "stakes": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The concrete cost of failing in this scene."
+        },
+        "physicalBusiness": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The physical task or object-work that gives the performance a life beyond the words."
+        },
+        "bodyState": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Observable center of gravity, posture, tempo, openness and breath at scene start."
+        },
+        "eyeLife": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Observable target changes, micro-saccades, blink quality, catchlights and eyes-leading-thought behavior."
+        },
+        "subtext": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional behaviorally legible difference between what is said and what is pursued."
+        },
+        "statusDynamic": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional visible change in who takes or yields status."
+        },
+        "proxemics": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional motivated distance relationship and changes between the characters."
+        },
+        "voiceProfiles": {
+          "type": "array",
+          "description": "Fixed voice identities copied verbatim from character_acting_profile. Use an empty array only when no dialogue is present; otherwise include exactly one profile for every dialogue subject.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "subjectId",
+              "voicePrompt"
+            ],
+            "properties": {
+              "subjectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "voicePrompt": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "continuationAnchor": {
+      "type": "string",
+      "description": "Optional end-state anchor for a later continuation: subject appearance, last action, environment/light and prop state."
+    },
+    "style": {
+      "type": "string",
+      "minLength": 40,
+      "description": "One or two English sentences naming the visual style, copied from the supplied art style: medium, palette, light quality and finish. The runner emits this immediately BEFORE [Shot 1], which is where the official guide requires the style opening in full-reference mode. Do not describe action here."
+    }
+  },
+  "description": "Strict structured intermediate scene contract for MiniMax H3. The runner deterministically writes subject_definitions and retention_analysis from references, compiles shots and typed dialogue into detailed_description, and assembles the existing six official sections. Do not author subject-definition prose or any <Picture N> slot numbering; those are runner-owned."
+}
