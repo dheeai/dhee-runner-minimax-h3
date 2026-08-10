@@ -148,3 +148,52 @@ t('carries the guide\'s motion types', () => {
 });
 
 console.log(`\n${pass} assertions passed.`);
+
+// ── index-based references ─────────────────────────────────────────────────
+{
+  const { normalizeIndexedRefs } = await import('../dist/officialFormat.js');
+
+  // A shot pointing at POSITIONS cannot invent or borrow an id, and cannot
+  // address a character as scenery when the arrays are split.
+  const doc = {
+    references: [{ id: 'sereth_vale', type: 'character' }, { id: 'kael', type: 'character' }, { id: 'the_forge', type: 'location' }],
+    shots: [{
+      acting: [{ subjectRef: 0 }, { subjectRef: 1 }],
+      sceneryRefs: [2],
+      dialogue: [{ subjectRef: 0, exactWords: 'Hold it steady.' }],
+    }],
+    continuationAnchor: { characterPositions: [{ subjectRef: 1, where: 'at the anvil' }] },
+  };
+  const notes = normalizeIndexedRefs(doc);
+  assert.deepEqual(doc.shots[0].acting.map((a) => a.subjectId), ['sereth_vale', 'kael']);
+  assert.deepEqual(doc.shots[0].sceneryIds, ['the_forge']);
+  assert.equal(doc.shots[0].dialogue[0].subjectId, 'sereth_vale');
+  assert.equal(doc.continuationAnchor.characterPositions[0].subjectId, 'kael');
+  assert.ok(notes.length >= 4);
+  console.log('  ok indexed refs resolve to ids');
+
+  // An out-of-range index fails HERE, naming what was available.
+  assert.throws(
+    () => normalizeIndexedRefs({ references: [{ id: 'a' }], shots: [{ sceneryRefs: [3] }] }),
+    /out of range.*1 reference\(s\).*0\.\.0/s,
+  );
+  console.log('  ok out-of-range index names the available references');
+
+  // A non-integer is rejected rather than coerced.
+  assert.throws(() => normalizeIndexedRefs({ references: [{ id: 'a' }], shots: [{ sceneryRefs: ['a'] }] }), /must be an integer index/);
+  console.log('  ok a string where an index belongs is rejected');
+
+  // Legacy id-based documents pass through untouched — every project authored
+  // before this exists on disk in that form.
+  const legacy = { references: [{ id: 'a' }], shots: [{ acting: [{ subjectId: 'a' }], sceneryIds: ['a'] }] };
+  assert.deepEqual(normalizeIndexedRefs(legacy), []);
+  assert.equal(legacy.shots[0].acting[0].subjectId, 'a');
+  console.log('  ok legacy id-based documents are untouched');
+
+  // continuationFrom describes the PREVIOUS scene, whose cast this scene's
+  // references[] does not describe — indexing it would be meaningless.
+  const withFrom = { references: [{ id: 'a' }], shots: [], continuationFrom: { characterPositions: [{ subjectId: 'someone_else' }] } };
+  normalizeIndexedRefs(withFrom);
+  assert.equal(withFrom.continuationFrom.characterPositions[0].subjectId, 'someone_else');
+  console.log('  ok continuationFrom is left alone');
+}

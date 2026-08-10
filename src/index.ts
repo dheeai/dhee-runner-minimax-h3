@@ -51,7 +51,7 @@ import type { RunnerContext, RunnerDescription, RunnerManifest, RunnerResult } f
 import { ComfyClient } from './comfyClient.js';
 import { ff, probeSize } from './ffmpeg.js';
 import { injectAuthoredDialogue } from './dialogueInjection.js';
-import { stepsForSceneComplexity, buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
+import { normalizeIndexedRefs, stepsForSceneComplexity, buildSubjectSections, remapSubjectLabels, assembleH3Prompt, auditDetailedDescription, auditDialogueIntegrity, auditDialogueScript, repairH3Prose, compileStructuredScenePrompt, validateStructuredScenePerformance } from './officialFormat.js';
 
 export * from './dialogueInjection.js';
 export * from './officialFormat.js';
@@ -1538,6 +1538,13 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const structuredMode = rs(cfg, 'structuredMode');
   const useStructuredPrompt = shouldCompileStructuredPrompt(promptDoc, structuredMode);
   if (promptDoc && useStructuredPrompt) {
+    // Rewrite index-based reference pointers into the id form every validator
+    // and the compiler already speak. Done FIRST so nothing downstream needs to
+    // know which form the author used — and so an out-of-range index fails here,
+    // naming the index and the references actually available, rather than
+    // surfacing later as a mysterious unknown id.
+    const refNotes = normalizeIndexedRefs(promptDoc);
+    if (refNotes.length) ctx.log(tag(`${itemId}: resolved ${refNotes.length} indexed reference(s)`));
     const expectedIds = expectedSceneReferenceIds(ctx, cfg, plan, itemId);
     if (expectedIds) {
       const pruned = pruneUnlicensedScenery(promptDoc, expectedIds);

@@ -2024,3 +2024,110 @@ export function stepsForSceneComplexity(
     : `${counters} → ${steps} of [${tiers.join(', ')}]`;
   return { steps, score, reason };
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Index-based references
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Rewrite index-based reference pointers into the id-based form the compiler
+ * and every validator already speak.
+ *
+ * WHY the indexed form exists. A shot used to name what it stages by STRING ID
+ * — free text that happens to need to match something elsewhere in the same
+ * document. That representation is what creates three distinct failure classes,
+ * all of which cost real films:
+ *
+ *   • UNLICENSED — an id belonging to another section
+ *   • WRONG SLOT — a character id sitting in a scenery field
+ *   • UNDECLARED — an id staged by a shot but absent from `references[]`
+ *
+ * Pointing at a POSITION instead deletes the first two outright. Ids then appear
+ * in exactly one place (`references[].id`, already enum-bound per item), so a
+ * shot cannot invent or borrow one; and when characters and scenery have their
+ * own index spaces, a character cannot be addressed as scenery.
+ *
+ * Be precise about what it does NOT do: JSON Schema can bound an index to
+ * 0..8 (because `references` has maxItems 9) but cannot bound it to the ACTUAL
+ * length of the array in this document. So UNDECLARED is not eliminated — it is
+ * reduced from set-membership over free text to a single integer bounds check,
+ * which is what this function performs and reports precisely.
+ *
+ * Both forms are accepted, deliberately: every project authored before this
+ * exists on disk in the id form, and a runner that could not read them would
+ * strand them. When both are present on the same field the INDEX wins, since it
+ * is the form that cannot have drifted.
+ */
+export function normalizeIndexedRefs(scene: unknown): string[] {
+  if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return [];
+  const root = scene as Record<string, unknown>;
+  const refs = Array.isArray(root['references']) ? root['references'] : [];
+  const ids = refs.map((r) =>
+    r && typeof r === 'object' && !Array.isArray(r) && typeof (r as Record<string, unknown>)['id'] === 'string'
+      ? ((r as Record<string, unknown>)['id'] as string)
+      : '',
+  );
+  const notes: string[] = [];
+  if (!ids.length) return notes;
+
+  /** Resolve one index, or throw naming the index AND what was available. */
+  const at = (value: unknown, path: string): string => {
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
+      throw new Error(`${path} must be an integer index into references[]; got ${JSON.stringify(value)}`);
+    }
+    if (value < 0 || value >= ids.length) {
+      throw new Error(
+        `${path}=${value} is out of range — this scene declares ${ids.length} reference(s), so valid indexes are ` +
+          `0..${ids.length - 1} (${ids.map((id, i) => `${i}=${id}`).join(', ')})`,
+      );
+    }
+    const id = ids[value];
+    if (!id) throw new Error(`${path}=${value} points at a reference with no id`);
+    return id;
+  };
+
+  const shots = Array.isArray(root['shots']) ? root['shots'] : [];
+  shots.forEach((rawShot, shotIndex) => {
+    if (!rawShot || typeof rawShot !== 'object' || Array.isArray(rawShot)) return;
+    const shot = rawShot as Record<string, unknown>;
+
+    const sceneryRefs = shot['sceneryRefs'];
+    if (Array.isArray(sceneryRefs)) {
+      shot['sceneryIds'] = sceneryRefs.map((v, i) => at(v, `shots[${shotIndex}].sceneryRefs[${i}]`));
+      notes.push(`shots[${shotIndex}].sceneryRefs → ${(shot['sceneryIds'] as string[]).join(', ') || '(none)'}`);
+    }
+
+    for (const key of ['acting', 'dialogue'] as const) {
+      const rows = shot[key];
+      if (!Array.isArray(rows)) continue;
+      rows.forEach((rawRow, rowIndex) => {
+        if (!rawRow || typeof rawRow !== 'object' || Array.isArray(rawRow)) return;
+        const row = rawRow as Record<string, unknown>;
+        if (row['subjectRef'] !== undefined) {
+          row['subjectId'] = at(row['subjectRef'], `shots[${shotIndex}].${key}[${rowIndex}].subjectRef`);
+          notes.push(`shots[${shotIndex}].${key}[${rowIndex}].subjectRef → ${row['subjectId'] as string}`);
+        }
+      });
+    }
+  });
+
+  // The continuity ledger points at this scene's own cast, so it indexes the
+  // same array. `continuationFrom` is deliberately NOT touched: it describes the
+  // PREVIOUS scene's end state, whose cast this scene's references[] does not
+  // describe — indexing it here would be meaningless.
+  const anchor = root['continuationAnchor'];
+  if (anchor && typeof anchor === 'object' && !Array.isArray(anchor)) {
+    const positions = (anchor as Record<string, unknown>)['characterPositions'];
+    if (Array.isArray(positions)) {
+      positions.forEach((rawEntry, i) => {
+        if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) return;
+        const entry = rawEntry as Record<string, unknown>;
+        if (entry['subjectRef'] !== undefined) {
+          entry['subjectId'] = at(entry['subjectRef'], `continuationAnchor.characterPositions[${i}].subjectRef`);
+        }
+      });
+    }
+  }
+
+  return notes;
+}
