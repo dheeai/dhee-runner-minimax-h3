@@ -41,7 +41,7 @@
  * node class_type. SDK-firewall clean: only @dheeai/runner-sdk plus the
  * vendored, dependency-free ComfyClient and ffmpeg helpers.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, basename } from 'node:path';
 
@@ -149,6 +149,11 @@ export interface H3WorkflowContractOptions {
   cacheStart?: number;
   cacheEnd?: number;
   cacheMaxSteps?: number;
+  /**
+   * Add an `ImageFromBatch -> SaveImage` branch exporting the clip's LAST frame
+   * losslessly, for use as the next clip's weld anchor. See addLastFrameExport.
+   */
+  exportLastFrame?: boolean;
 }
 
 export interface H3WorkflowContractResult {
@@ -239,7 +244,41 @@ export function applyH3WorkflowContract(
     }
   }
 
+  if (options.exportLastFrame) addLastFrameExport(wf, length, itemId);
+
   return { scheduler, cacheLog };
+}
+
+/**
+ * Add a lossless last-frame export: `ImageFromBatch -> SaveImage`, hung off the
+ * decoded IMAGE batch BEFORE any video encode.
+ *
+ * WHY not just ffmpeg the frame out of the mp4 afterwards: an H.264 roundtrip
+ * erodes the anchor, and this frame's whole job is to be reproduced exactly by
+ * the next clip. Measured on our stack, an anchor taken from the graph welds at
+ * SSIM 0.881; the external practitioner independently reports the same reason
+ * for the same branch in their graph.
+ *
+ * The frame index is `length - 1` — the LAST generated frame. If the edit ever
+ * trims clip tails (audio-driven cutting), the anchor must instead be the first
+ * UNUSED frame or the join gets a duplicated frame; that decision belongs to
+ * whatever does the trimming, which is why it is not made here.
+ */
+function addLastFrameExport(wf: Workflow, length: number, itemId: string): void {
+  const createVideo = Object.values(wf).find((n) => n.class_type === 'CreateVideo');
+  const imagesLink = createVideo?.inputs?.['images'];
+  if (!Array.isArray(imagesLink)) {
+    throw new Error('exportLastFrame: cannot find the decoded IMAGE batch feeding CreateVideo');
+  }
+  const safe = itemId.replace(/[^a-zA-Z0-9_]/g, '_');
+  wf['h3LastFramePick'] = {
+    class_type: 'ImageFromBatch',
+    inputs: { image: imagesLink, batch_index: Math.max(0, length - 1), length: 1 },
+  };
+  wf['h3LastFrameSave'] = {
+    class_type: 'SaveImage',
+    inputs: { images: ['h3LastFramePick', 0], filename_prefix: `h3_last_${safe}` },
+  };
 }
 
 // ── small shared helpers (kept local — the SDK firewall forbids core imports) ──
@@ -1216,6 +1255,70 @@ interface PinnedRefSpec {
   job?: unknown;
 }
 
+/**
+ * The prose sentence that turns a reference picture into a WELD.
+ *
+ * The anchor only works if the prompt says the picture IS the first frame —
+ * supplying the image alone leaves it as one more reference to draw from. It
+ * deliberately does NOT describe what the frame contains: H3 trusts the picture
+ * over the text when they disagree, so a description would add a second and
+ * possibly wrong source of truth for something the image already states exactly.
+ */
+export function anchorSentence(slot: number): string {
+  return `The first frame of this shot is exactly <Picture ${slot}>: the shot begins on that image and ` +
+    `continues from it with no cut, keeping the same framing, the same lens, the same light and the same ` +
+    `position of everything in the frame.`;
+}
+
+/**
+ * Resolve the weld anchor — the previous clip's exported last frame.
+ *
+ * MEASURED CONSTRAINT (artifacts/h3-weld-probe, four scenes): the anchor welds
+ * only when the clip it came FROM was static. A static source gives SSIM 0.881
+ * / 0.843 against a ~0.3 control; a source whose camera was moving gives +0.04
+ * or less, i.e. nothing — after a move, A's final framing is somewhere the prose
+ * never describes and the next clip composes its own instead.
+ *
+ * So the working grammar is: weld on a static frame, then let the camera start a
+ * NEW move in this clip. The change of camera then reads as deliberate direction
+ * rather than a discontinuity to conceal. Authoring scenes that end static where
+ * a weld follows is a PLANNER responsibility; the runner cannot check it.
+ */
+function anchorRef(ctx: RunnerContext, cfg: Record<string, unknown>): { ref?: H3Ref; note?: string } {
+  const key = rs(cfg, 'anchorInput');
+  if (!key) return {};
+  const v = ctx.inputs[key];
+  // Absent is normal, not an error: the FIRST clip of any chain has nothing to
+  // weld onto, and it runs through the same node as every other clip.
+  if (typeof v !== 'string' || !v.trim()) return { note: `anchor '${key}' not supplied — rendering unwelded (expected on the first clip)` };
+  if (!IMAGE_RE.test(v) || !existsSync(v)) return { note: `anchor '${key}' skipped (not a readable image: ${v})` };
+  return {
+    ref: {
+      id: 'weld_anchor',
+      type: 'anchor',
+      appearsAs: 'the exact final frame of the preceding shot',
+      job: 'it IS the first frame of this shot — reproduce it exactly at time zero and continue from it',
+      path: v,
+    },
+  };
+}
+
+/**
+ * Read the seed recorded beside an exported anchor frame.
+ *
+ * Returns undefined when there is no sidecar — an anchor produced before this
+ * existed, or hand-supplied by an operator. That is a WARNING at the call site,
+ * not a failure: the render still works, it just welds markedly less well.
+ */
+function readAnchorSeed(anchorPath: string): number | undefined {
+  const sidecar = anchorPath.replace(/\.[^./]+$/, '') + '.json';
+  if (!existsSync(sidecar)) return undefined;
+  try {
+    const seed = (JSON.parse(readFileSync(sidecar, 'utf-8')) as { seed?: unknown }).seed;
+    return typeof seed === 'number' && Number.isFinite(seed) ? seed : undefined;
+  } catch { return undefined; }
+}
+
 function pinnedRefs(ctx: RunnerContext, cfg: Record<string, unknown>): { refs: H3Ref[]; notes: string[] } {
   const raw = cfg['pinnedRefs'];
   if (!Array.isArray(raw) || !raw.length) return { refs: [], notes: [] };
@@ -1412,6 +1515,8 @@ const H3_DESC: RunnerDescription = {
     required: ['outputPath', 'workflowPath'],
     properties: {
       outputPath: { type: 'string' },
+      exportLastFrame: { type: 'boolean', description: "Export this clip's LAST frame losslessly (ImageFromBatch -> SaveImage, off the decoded batch BEFORE any encode) to `<outputPath>_last.png`, for use as the next clip's weld anchor. An H.264 roundtrip erodes the anchor, which is why this is not an ffmpeg frame-grab. Off by default." },
+      anchorInput: { type: 'string', description: "Input id holding the PREVIOUS clip's exported last frame. When supplied, it is added as <Picture 1> and the prompt is told that picture IS this shot's first frame, welding the two clips with no transition. MEASURED (artifacts/h3-weld-probe): this welds (SSIM ~0.88) ONLY when the clip the anchor came FROM was static; if that clip's camera was moving, the anchor contributes nothing. Working grammar: weld on a static frame, then let the camera start a NEW move in this clip. Absent input = render unwelded, which is normal for the first clip of a chain." },
       workflowPath: { type: 'string', description: 'API-format H3 graph in the bundle. Must contain MiniMaxH3ReferenceToVideo; its ref_images.* inputs are rebuilt by this runner.' },
       endpoint: { type: 'string', description: 'Comfy endpoint label (default self.local).' },
 
@@ -1631,11 +1736,21 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   // photo override a generated anchor rather than queue behind it.
   const pinned = pinnedRefs(ctx, cfg);
   const routed = resolveRefs(ctx, cfg, planShots);
-  const allNotes = [...pinned.notes, ...routed.notes];
+  // The weld anchor leads, so buildBindingClause numbers it <Picture 1> — the
+  // slot anchorSentence() names. It is added AFTER routeRefs rather than through
+  // it, because routing exists to order subjects against a background and the
+  // anchor is neither; it must simply be first.
+  const anchor = anchorRef(ctx, cfg);
+  const allNotes = [...pinned.notes, ...routed.notes, ...(anchor.note ? [anchor.note] : [])];
   if (allNotes.length) ctx.log(tag(`${itemId} refs: ${allNotes.join(', ')}`));
   let refs = pinned.refs.length || routed.refs.length
     ? routeRefs([...pinned.refs, ...routed.refs], bgTypesOf(cfg), rn(cfg, 'maxRefs') ?? H3_MAX_REFS).refs
     : explicitRefImages(ctx, cfg).slice(0, H3_MAX_REFS);
+  if (anchor.ref) {
+    // One slot of the nine goes to the anchor, so drop the lowest-priority
+    // reference rather than silently exceeding H3's cap.
+    refs = [anchor.ref, ...refs].slice(0, rn(cfg, 'maxRefs') ?? H3_MAX_REFS);
+  }
   if (refs.length < 1) return { ok: false, error: tag(`need ≥1 reference image, got 0 for ${itemId}`) };
 
   // ── split multi-view identity SHEETS into separate single-view plates ──
@@ -1764,6 +1879,23 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   }
   if (trimmed > 0) ctx.log(tag(`${itemId}: prompt exceeded H3's ~${H3_PROMPT_CHAR_LIMIT}-char window — trimmed ${trimmed} chars off the prose tail`));
 
+  // The weld sentence is appended AFTER composition, deliberately. composePrompt
+  // trims off the PROSE TAIL, which is exactly where this sentence would sit —
+  // so composing it in would make it the first thing discarded on a long scene,
+  // and a silently dropped anchor sentence renders an unwelded clip with no
+  // signal at all. Supplying the picture without saying it IS the first frame
+  // leaves it as just another reference to draw from.
+  if (anchor.ref) {
+    const slot = refs.findIndex((r) => r.id === anchor.ref!.id) + 1;
+    if (slot > 0) {
+      positive = `${positive}\n\n${anchorSentence(slot)}`;
+      ctx.log(tag(`${itemId}: welding onto <Picture ${slot}> — ${basename(anchor.ref.path)}`));
+      if (positive.length > H3_PROMPT_CHAR_LIMIT) {
+        ctx.log(tag(`${itemId}: WARNING — prompt is ${positive.length} chars with the weld sentence, over H3's ~${H3_PROMPT_CHAR_LIMIT} window; the anchor is kept and the scene should be shortened`));
+      }
+    }
+  }
+
   // ── geometry / sampler ──
   const resKey = rs(cfg, 'resolutionInput');
   const geom = resolveGeometry(resKey ? ctx.inputs[resKey] : undefined, rn(cfg, 'width'), rn(cfg, 'height'));
@@ -1806,7 +1938,25 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   const samplerName = rs(cfg, 'samplerName') ?? 'res_multistep';
   const scheduler = rs(cfg, 'scheduler') ?? 'simple';
   const baseSeed = Math.round(rn(cfg, 'seed') ?? 42);
-  const usedSeed = (baseSeed + hashStr(itemId)) % 2_000_000_000;
+  /**
+   * A welded clip must render at its SOURCE clip's seed.
+   *
+   * MEASURED (artifacts/h3-weld-probe, diag_seed_parity.mjs): the identical
+   * scene, anchor and prompt weld at **0.832 on the source clip's seed and only
+   * 0.608 on a different one** — a 0.22 swing, enough to turn a weld into a
+   * near-miss. The per-item hash below exists so separate items do not correlate,
+   * which is right everywhere except across a weld, where correlation is the
+   * entire point.
+   *
+   * The seed rides with the anchor rather than through bundle config: the export
+   * writes a `<frame>.json` sidecar, and anchoring reads it back. So a chain
+   * stays correct with no extra wiring, and nothing has to thread a number
+   * between two nodes that only know each other through a file path.
+   */
+  const inheritedSeed = anchor.ref ? readAnchorSeed(anchor.ref.path) : undefined;
+  const usedSeed = inheritedSeed ?? (baseSeed + hashStr(itemId)) % 2_000_000_000;
+  if (inheritedSeed !== undefined) ctx.log(tag(`${itemId}: inherited seed ${inheritedSeed} from the anchor (a weld needs its source clip's seed)`));
+  else if (anchor.ref) ctx.log(tag(`${itemId}: WARNING — anchor has no seed sidecar, rendering at this item's own seed; the weld will be markedly weaker (measured 0.61 vs 0.83)`));
 
   const endpointLabel = rs(cfg, 'endpoint') ?? 'self.local';
   const baseUrl = resolveEndpointUrl(endpointLabel);
@@ -1834,6 +1984,9 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   if (!Object.values(wf).some((node) => node.class_type === 'MiniMaxH3ReferenceToVideo')) {
     return { ok: false, error: tag(`workflow ${basename(workflowPath)} has no MiniMaxH3ReferenceToVideo node`) };
   }
+  // Exporting the last frame is opt-in: it costs a extra SaveImage per render,
+  // and only a bundle that welds its clips together has any use for it.
+  const wantLastFrame = rb(cfg, 'exportLastFrame') === true;
   const contract = applyH3WorkflowContract(wf, {
     positive,
     referenceNames: names,
@@ -1847,6 +2000,7 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     seed: usedSeed,
     fps,
     itemId,
+    exportLastFrame: wantLastFrame,
     cacheEnabled: rb(cfg, 'cache') ?? rb(cfg, 'easyCache'),
     cacheThreshold: rn(cfg, 'cacheThreshold') ?? rn(cfg, 'easyCacheThreshold'),
     cacheStart: rn(cfg, 'cacheStart') ?? rn(cfg, 'easyCacheStart'),
@@ -1869,6 +2023,27 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   try { await retryTransient(() => client.download(picked, outAbs), { signal: ctx.signal, log: ctx.log, label: 'h3 download' }); }
   catch (e) { return { ok: false, error: tag(`download failed: ${msg(e)}`) }; }
 
+  // The exported anchor lands beside the video as `<output>_last.png`, so a
+  // sibling node can point `anchorInput` at it without the bundle inventing a
+  // second path convention. Downloaded BEFORE padClip touches the mp4 — the
+  // anchor comes off the decoded batch and is unaffected by padding either way.
+  let lastFramePath: string | undefined;
+  if (wantLastFrame) {
+    const png = outputs.find((o) => /\.png$/i.test(o.filename));
+    if (!png) return { ok: false, error: tag('exportLastFrame was set but Comfy returned no PNG — is ImageFromBatch installed?') };
+    const rel = outputPath.replace(/\.[^./]+$/, '') + '_last.png';
+    const abs = projAbs(ctx.projectDir, rel);
+    if (!abs) return { ok: false, error: tag(`last-frame path escapes project: ${rel}`) };
+    try { await retryTransient(() => client.download(png, abs), { signal: ctx.signal, log: ctx.log, label: 'h3 last-frame download' }); }
+    catch (e) { return { ok: false, error: tag(`last-frame download failed: ${msg(e)}`) }; }
+    lastFramePath = rel;
+    // The seed rides WITH the frame. A welded clip must render at its source
+    // clip's seed (0.83 vs 0.61 measured), and a file path is the only thing the
+    // next node is given — so the number has to travel with it.
+    writeFileSync(abs.replace(/\.[^./]+$/, '') + '.json', JSON.stringify({ seed: usedSeed, itemId, frames: LEN }, null, 2));
+    ctx.log(tag(`${itemId}: exported last frame → ${rel} (seed ${usedSeed} recorded beside it)`));
+  }
+
   const padStart = rn(cfg, 'padStart') ?? 0;
   const padEnd = rn(cfg, 'padEnd') ?? 0;
   if (padStart > 0 || padEnd > 0) {
@@ -1883,8 +2058,18 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     width: W, height: He, refImageSize, steps, sampler: samplerName, scheduler, seed: usedSeed,
     promptChars: positive.length, promptTrimmed: trimmed, bindingClause: wantClause,
     comfyOutput: picked.filename, workflow: basename(workflowPath),
+    ...(lastFramePath ? { lastFramePath } : {}),
+    ...(anchor.ref ? { weldedOnto: basename(anchor.ref.path) } : {}),
   };
-  return { ok: true, outputPath, outputs: [{ path: outputPath, kind: 'video', metadata: meta }], metadata: meta };
+  return {
+    ok: true,
+    outputPath,
+    outputs: [
+      { path: outputPath, kind: 'video', metadata: meta },
+      ...(lastFramePath ? [{ path: lastFramePath, kind: 'image' as const, metadata: { role: 'weld_anchor' } }] : []),
+    ],
+    metadata: meta,
+  };
 }
 
 export const h3Runner = defineRunner({ describe: () => H3_DESC, run: runH3 });
