@@ -1468,7 +1468,14 @@ function readSidecar(mediaPath: string): ClipSidecar | undefined {
 function previousClip(ctx: RunnerContext, cfg: Record<string, unknown>): { path?: string; side?: ClipSidecar; note?: string } {
   const key = rs(cfg, 'previousClipInput');
   if (!key) return {};
-  const v = ctx.inputs[key];
+  // `scope: 'previousN'` can hand this over as a bare path, a list of the last N
+  // paths, or a map keyed by item id — take the LAST entry in every case, which
+  // is the immediately preceding clip.
+  const raw = ctx.inputs[key];
+  const v = typeof raw === 'string' ? raw
+    : Array.isArray(raw) ? [...raw].reverse().find((x) => typeof x === 'string')
+    : raw && typeof raw === 'object' ? [...Object.values(raw as Record<string, unknown>)].reverse().find((x) => typeof x === 'string') as string | undefined
+    : undefined;
   if (typeof v !== 'string' || !v.trim()) return { note: `no previous clip on '${key}' — first clip of the chain, rendering unchained` };
   if (!existsSync(v)) return { note: `previous clip '${v}' not readable — rendering unchained` };
   const side = readSidecar(v);
