@@ -154,6 +154,8 @@ export interface H3WorkflowContractOptions {
    * losslessly, for use as the next clip's weld anchor. See addLastFrameExport.
    */
   exportLastFrame?: boolean;
+  /** Motion-context chaining. See addMotionContext. */
+  motionContext?: { slot: string; clipIndex: number; from?: { videoName: string; clipIndex: number }; contextLength: string; audioContextLength: number };
 }
 
 export interface H3WorkflowContractResult {
@@ -244,7 +246,18 @@ export function applyH3WorkflowContract(
     }
   }
 
-  if (options.exportLastFrame) addLastFrameExport(wf, length, itemId);
+  // ORDER MATTERS. Motion context rewires CreateVideo onto the TRIMMED batch,
+  // and the frame export reads whatever CreateVideo is fed — so it must run
+  // first, or the exported "last frame" comes off the untrimmed batch.
+  let deliveredFrames = length;
+  if (options.motionContext) {
+    addMotionContext(wf, options.motionContext);
+    // Trim removes context_length frames from the head, so the delivered batch
+    // is shorter than the one rendered. Indexing at length-1 would be past the
+    // end of it.
+    if (options.motionContext.from) deliveredFrames = length - Number(options.motionContext.contextLength);
+  }
+  if (options.exportLastFrame) addLastFrameExport(wf, deliveredFrames, itemId);
 
   return { scheduler, cacheLog };
 }
@@ -264,6 +277,100 @@ export function applyH3WorkflowContract(
  * UNUSED frame or the join gets a duplicated frame; that decision belongs to
  * whatever does the trimming, which is why it is not made here.
  */
+/**
+ * Motion-context chaining, applied to the SAME Ref2VA graph — the pack calls
+ * this "keyframe/ref coexistence", and it is confirmed working with identity
+ * plates present.
+ *
+ * MEASURED against the anchor-frame alternative on one scene, one seed, one
+ * graph (artifacts/h3-weld-probe/compare_mechanisms.mjs):
+ *   motion context 0.874 | anchor frame 0.781 | neither 0.381
+ * and motion context answers the HARDER question — its frame 0 is post-Trim,
+ * the frame AFTER the source's tail — while having no static-source constraint.
+ * The anchor needs its source clip to be static; this does not.
+ *
+ * Two halves:
+ *   SAVE  every clip writes its latent to `<slot>/clip` at its own index, so the
+ *         next one can continue from it. Runs even on clip 1.
+ *   PIN   a clip with a predecessor loads that latent plus the previous clip's
+ *         frames, rewires the guider through MiniMaxH3MotionContext, and Trims
+ *         the duplicated head back off — picture and audio together.
+ *
+ * Trim means a chained clip RETURNS LESS VIDEO THAN IT RENDERED (context_length
+ * frames fewer, ~0.92s at 22). That is by design; budget for it.
+ *
+ * Node spec verified live 2026-08-11 — `context_length` is a STRING enum
+ * ['22','5','39','56'] (passing an int fails validation), and the pack's older
+ * `encode_mode` / `anchor_mode` / `crop` / `audio_mode` inputs no longer exist.
+ */
+function addMotionContext(
+  wf: Workflow,
+  opts: { slot: string; clipIndex: number; from?: { videoName: string; clipIndex: number }; contextLength: string; audioContextLength: number },
+): void {
+  const byClass = (cls: string) => Object.keys(wf).find((k) => wf[k]?.class_type === cls);
+  const samplerId = byClass('SamplerCustomAdvanced');
+  const r2vId = byClass('MiniMaxH3ReferenceToVideo');
+  const guiderId = byClass('BasicGuider');
+  const decodeId = byClass('VAEDecode');
+  const decodeAudioId = byClass('VAEDecodeAudio');
+  const createVideoId = byClass('CreateVideo');
+  const videoVaeId = Object.keys(wf).find(
+    (k) => wf[k]?.class_type === 'VAELoader' && /video/i.test(String(wf[k]?.inputs?.['vae_name'] ?? '')),
+  );
+  for (const [name, id] of Object.entries({ samplerId, r2vId, guiderId, decodeId, decodeAudioId, createVideoId, videoVaeId })) {
+    if (!id) throw new Error(`motionContext: workflow is missing the node behind ${name}`);
+  }
+
+  // SAVE — every clip, including the first. filename_prefix is FOLDER/prefix and
+  // the loader is given the FOLDER; a bare prefix for both writes files the
+  // loader then cannot find ("neither a file nor a folder").
+  wf['mcSave'] = {
+    class_type: 'MiniMaxH3MotionContextSaveLatent',
+    inputs: { latent: [samplerId!, 0], filename_prefix: `${opts.slot}/clip`, clip_index: opts.clipIndex },
+  };
+
+  if (!opts.from) return;
+
+  // PIN — continue from the previous clip.
+  wf['mcVideo'] = { class_type: 'LoadVideo', inputs: { file: opts.from.videoName } };
+  wf['mcFrames'] = { class_type: 'GetVideoComponents', inputs: { video: ['mcVideo', 0] } };
+  wf['mcLoad'] = {
+    class_type: 'MiniMaxH3MotionContextLoadLatent',
+    inputs: { latent_path: opts.slot, clip_index: opts.from.clipIndex },
+  };
+  wf['mc'] = {
+    class_type: 'MiniMaxH3MotionContext',
+    inputs: {
+      conditioning: [r2vId!, 0],
+      vae: [videoVaeId!, 0],
+      latent: [r2vId!, 1],
+      context_frames: ['mcFrames', 0],
+      context_latent: ['mcLoad', 0],
+      context_length: opts.contextLength,
+      // Pinned SEPARATELY from the video window, and 0 by default.
+      //
+      // Pinning audio tells H3 to continue the previous clip's SPEECH while the
+      // prompt also hands it a fresh <d> line — two utterances in one clip,
+      // heard as doubled audio at the seam (founder, on a ctx-56 chain whose
+      // MOTION was good). The pack's old `audio_mode` switch (`timeline` vs
+      // `ref`) no longer exists as an input, so this length is the only control
+      // left over that behaviour.
+      //
+      // Video continuity comes from the LATENT, not from the audio window, so
+      // dropping this keeps the motion improvement.
+      audio_context_length: opts.audioContextLength,
+    },
+  };
+  (wf[guiderId!]!.inputs ??= {})['conditioning'] = ['mc', 0];
+  wf['mcTrim'] = {
+    class_type: 'MiniMaxH3MotionContextTrim',
+    inputs: { images: [decodeId!, 0], trim_frames: ['mc', 1], audio: [decodeAudioId!, 0], fps: 24, match_tail: true },
+  };
+  const cv = wf[createVideoId!]!.inputs ??= {};
+  cv['images'] = ['mcTrim', 0];
+  cv['audio'] = ['mcTrim', 1];
+}
+
 function addLastFrameExport(wf: Workflow, length: number, itemId: string): void {
   const createVideo = Object.values(wf).find((n) => n.class_type === 'CreateVideo');
   const imagesLink = createVideo?.inputs?.['images'];
@@ -1310,8 +1417,69 @@ function anchorRef(ctx: RunnerContext, cfg: Record<string, unknown>): { ref?: H3
  * existed, or hand-supplied by an operator. That is a WARNING at the call site,
  * not a failure: the render still works, it just welds markedly less well.
  */
+/**
+ * What one clip hands the next: everything the seam needs, beside the exported
+ * frame. A file path is all a sibling node is given, so anything the next clip
+ * must know has to travel with the file rather than through bundle config.
+ */
+interface ClipSidecar {
+  /** A welded/chained clip must render at its SOURCE clip's seed (0.83 vs 0.61). */
+  seed: number;
+  /** Latent slot folder on the Comfy box, shared by every clip in one chain. */
+  slot?: string;
+  /** This clip's 1-based index within that slot — the next clip continues FROM it. */
+  clipIndex?: number;
+  itemId?: string;
+  frames?: number;
+}
+
+/**
+ * THE one place that knows where a clip's sidecar lives.
+ *
+ * Writer and reader derived this independently once, and disagreed: the file is
+ * written beside the exported FRAME (`<clip>_last.json`) while the reader is
+ * handed the CLIP and looked for `<clip>.json`. It never resolved, so every clip
+ * in a chain rendered as a chain head — no index, no seed, no pinning — and
+ * nothing failed loudly. Both sides call this now.
+ */
+export function sidecarPathFor(clipOrFramePath: string): string {
+  const base = clipOrFramePath.replace(/\.[^./]+$/, '');
+  return base.endsWith('_last') ? `${base}.json` : `${base}_last.json`;
+}
+
+function readSidecar(mediaPath: string): ClipSidecar | undefined {
+  const sidecar = sidecarPathFor(mediaPath);
+  if (!existsSync(sidecar)) return undefined;
+  try { return JSON.parse(readFileSync(sidecar, 'utf-8')) as ClipSidecar; }
+  catch { return undefined; }
+}
+
+/**
+ * Resolve the PREVIOUS clip for motion-context chaining.
+ *
+ * The bundle wires this as `{ from: 'scene_clip', scope: 'previousN', n: 1 }`,
+ * so the input is the previous clip's VIDEO. Its sidecar
+ * (`<clip>_last.json`, written by exportLastFrame) carries the seed, the latent
+ * slot and that clip's index — so a chain needs no other wiring.
+ *
+ * Absent is normal: the FIRST clip of any chain has no predecessor and runs
+ * through the same node.
+ */
+function previousClip(ctx: RunnerContext, cfg: Record<string, unknown>): { path?: string; side?: ClipSidecar; note?: string } {
+  const key = rs(cfg, 'previousClipInput');
+  if (!key) return {};
+  const v = ctx.inputs[key];
+  if (typeof v !== 'string' || !v.trim()) return { note: `no previous clip on '${key}' — first clip of the chain, rendering unchained` };
+  if (!existsSync(v)) return { note: `previous clip '${v}' not readable — rendering unchained` };
+  const side = readSidecar(v);
+  if (!side?.slot || side.clipIndex === undefined) {
+    return { path: v, note: `previous clip has no chain sidecar — cannot pin motion context to it, rendering unchained` };
+  }
+  return { path: v, side };
+}
+
 function readAnchorSeed(anchorPath: string): number | undefined {
-  const sidecar = anchorPath.replace(/\.[^./]+$/, '') + '.json';
+  const sidecar = sidecarPathFor(anchorPath);
   if (!existsSync(sidecar)) return undefined;
   try {
     const seed = (JSON.parse(readFileSync(sidecar, 'utf-8')) as { seed?: unknown }).seed;
@@ -1516,6 +1684,11 @@ const H3_DESC: RunnerDescription = {
     properties: {
       outputPath: { type: 'string' },
       exportLastFrame: { type: 'boolean', description: "Export this clip's LAST frame losslessly (ImageFromBatch -> SaveImage, off the decoded batch BEFORE any encode) to `<outputPath>_last.png`, for use as the next clip's weld anchor. An H.264 roundtrip erodes the anchor, which is why this is not an ffmpeg frame-grab. Off by default." },
+      motionContext: { type: 'boolean', description: "Chain this clip onto the previous one with MiniMaxH3MotionContext — the previous clip's tail LATENTS are pinned into this generation and the duplicated head is trimmed back off, carrying MOMENTUM across the seam. MEASURED against the anchor-frame alternative on one scene/seed/graph: motion context 0.874, anchor 0.781, neither 0.381 — and unlike the anchor it does NOT require the previous clip to be static. Implies exportLastFrame (the sidecar carries the latent slot and index the next clip loads). NOTE a chained clip returns contextLength FEWER frames than it rendered, because Trim removes the duplicated head." },
+      motionContextSlot: { type: 'string', description: 'Latent slot folder on the Comfy box shared by one chain. Defaults to a per-project, per-node name; set it only to share or separate chains deliberately.' },
+      audioContextLength: { type: 'integer', minimum: 0, description: "Frames of the previous clip's AUDIO to pin. Default 0 = do not pin audio. Pinning it makes H3 continue the previous clip's speech while the prompt also supplies a fresh <d> line, which is heard as DOUBLED audio at the seam. Video continuity comes from the latent, so leaving this at 0 keeps the motion benefit. Raise it only for a wordless bed you want carried across the join." },
+      contextLength: { type: 'string', enum: ['22', '5', '39', '56'], description: "Frames of the previous clip pinned into this one. 22 is the pack's tested 'nearly seamless'. This is a STRING enum on the node — an integer fails validation at queue time." },
+      previousClipInput: { type: 'string', description: "Input id holding the PREVIOUS clip's video, normally wired as { from: '<this node>', scope: 'previousN', n: 1 }. Its sidecar (written by exportLastFrame) carries the seed, latent slot and clip index, so a chain needs no other wiring. Absent = first clip of the chain, rendered unchained." },
       anchorInput: { type: 'string', description: "Input id holding the PREVIOUS clip's exported last frame. When supplied, it is added as <Picture 1> and the prompt is told that picture IS this shot's first frame, welding the two clips with no transition. MEASURED (artifacts/h3-weld-probe): this welds (SSIM ~0.88) ONLY when the clip the anchor came FROM was static; if that clip's camera was moving, the anchor contributes nothing. Working grammar: weld on a static frame, then let the camera start a NEW move in this clip. Absent input = render unwelded, which is normal for the first clip of a chain." },
       workflowPath: { type: 'string', description: 'API-format H3 graph in the bundle. Must contain MiniMaxH3ReferenceToVideo; its ref_images.* inputs are rebuilt by this runner.' },
       endpoint: { type: 'string', description: 'Comfy endpoint label (default self.local).' },
@@ -1741,7 +1914,22 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   // it, because routing exists to order subjects against a background and the
   // anchor is neither; it must simply be first.
   const anchor = anchorRef(ctx, cfg);
-  const allNotes = [...pinned.notes, ...routed.notes, ...(anchor.note ? [anchor.note] : [])];
+  const prev = previousClip(ctx, cfg);
+  // Chaining requires the sidecar (it carries the slot and index the next clip
+  // loads), so motionContext implies the export rather than making a bundle
+  // remember to set both.
+  const wantMotionContext = rb(cfg, 'motionContext') === true;
+  const wantLastFrame = rb(cfg, 'exportLastFrame') === true || wantMotionContext;
+  // One slot per project per node: every clip of one chain shares it.
+  const mcSlot = rs(cfg, 'motionContextSlot') ?? `h3mc_${basename(ctx.projectDir)}_${ctx.node.id}`.replace(/[^a-zA-Z0-9_]/g, '_');
+  const mcContextLength = rs(cfg, 'contextLength') ?? '22';
+  // 0 = do not pin audio. See addMotionContext for why that is the default.
+  const mcAudioContextLength = rn(cfg, 'audioContextLength') ?? 0;
+  // 1-based, and strictly one past the clip being continued from — so the chain
+  // numbers itself off the sidecar instead of parsing ids or counting nodes.
+  const mcClipIndex = (prev.side?.clipIndex ?? 0) + 1;
+
+  const allNotes = [...pinned.notes, ...routed.notes, ...(anchor.note ? [anchor.note] : []), ...(prev.note ? [prev.note] : [])];
   if (allNotes.length) ctx.log(tag(`${itemId} refs: ${allNotes.join(', ')}`));
   let refs = pinned.refs.length || routed.refs.length
     ? routeRefs([...pinned.refs, ...routed.refs], bgTypesOf(cfg), rn(cfg, 'maxRefs') ?? H3_MAX_REFS).refs
@@ -1953,7 +2141,7 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
    * stays correct with no extra wiring, and nothing has to thread a number
    * between two nodes that only know each other through a file path.
    */
-  const inheritedSeed = anchor.ref ? readAnchorSeed(anchor.ref.path) : undefined;
+  const inheritedSeed = (anchor.ref ? readAnchorSeed(anchor.ref.path) : undefined) ?? prev.side?.seed;
   const usedSeed = inheritedSeed ?? (baseSeed + hashStr(itemId)) % 2_000_000_000;
   if (inheritedSeed !== undefined) ctx.log(tag(`${itemId}: inherited seed ${inheritedSeed} from the anchor (a weld needs its source clip's seed)`));
   else if (anchor.ref) ctx.log(tag(`${itemId}: WARNING — anchor has no seed sidecar, rendering at this item's own seed; the weld will be markedly weaker (measured 0.61 vs 0.83)`));
@@ -1971,6 +2159,16 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     catch (e) { return { ok: false, error: tag(`reference upload failed (${basename(refs[i]!.path)}): ${msg(e)}`) }; }
   }
 
+  // LoadVideo reads Comfy's INPUT directory, so the previous clip — which lives
+  // in the PROJECT — has to go back up to the box before it can be pinned
+  // against. Passing its project path or its output filename fails validation.
+  let prevUploadedName: string | undefined;
+  if (wantMotionContext && prev.path && prev.side) {
+    try { prevUploadedName = (await retryTransient(() => client.uploadFile(prev.path!), { signal: ctx.signal, log: ctx.log, label: 'h3 upload previous clip' })).name; }
+    catch (e) { return { ok: false, error: tag(`previous-clip upload failed (${basename(prev.path)}): ${msg(e)}`) }; }
+    ctx.log(tag(`${itemId}: chaining from ${basename(prev.path)} (slot ${prev.side.slot}, clip ${prev.side.clipIndex} → ${mcClipIndex})`));
+  }
+
   let wf: Workflow;
   try { wf = JSON.parse(readFileSync(wfAbs, 'utf-8')) as Workflow; }
   catch (e) { return { ok: false, error: tag(`failed to read workflow: ${msg(e)}`) }; }
@@ -1986,7 +2184,6 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
   }
   // Exporting the last frame is opt-in: it costs a extra SaveImage per render,
   // and only a bundle that welds its clips together has any use for it.
-  const wantLastFrame = rb(cfg, 'exportLastFrame') === true;
   const contract = applyH3WorkflowContract(wf, {
     positive,
     referenceNames: names,
@@ -2001,6 +2198,13 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     fps,
     itemId,
     exportLastFrame: wantLastFrame,
+    ...(wantMotionContext ? { motionContext: {
+      slot: mcSlot,
+      clipIndex: mcClipIndex,
+      contextLength: mcContextLength,
+      audioContextLength: mcAudioContextLength,
+      ...(prev.path && prev.side ? { from: { videoName: prevUploadedName!, clipIndex: prev.side.clipIndex! } } : {}),
+    } } : {}),
     cacheEnabled: rb(cfg, 'cache') ?? rb(cfg, 'easyCache'),
     cacheThreshold: rn(cfg, 'cacheThreshold') ?? rn(cfg, 'easyCacheThreshold'),
     cacheStart: rn(cfg, 'cacheStart') ?? rn(cfg, 'easyCacheStart'),
@@ -2040,7 +2244,10 @@ async function runH3(ctx: RunnerContext): Promise<RunnerResult> {
     // The seed rides WITH the frame. A welded clip must render at its source
     // clip's seed (0.83 vs 0.61 measured), and a file path is the only thing the
     // next node is given — so the number has to travel with it.
-    writeFileSync(abs.replace(/\.[^./]+$/, '') + '.json', JSON.stringify({ seed: usedSeed, itemId, frames: LEN }, null, 2));
+    writeFileSync(
+      sidecarPathFor(abs),
+      JSON.stringify({ seed: usedSeed, itemId, frames: LEN, ...(wantMotionContext ? { slot: mcSlot, clipIndex: mcClipIndex } : {}) }, null, 2),
+    );
     ctx.log(tag(`${itemId}: exported last frame → ${rel} (seed ${usedSeed} recorded beside it)`));
   }
 
